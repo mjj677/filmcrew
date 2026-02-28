@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/types/database";
+import type { Profile } from "@/types/models";
 
 type AuthState = {
   session: Session | null;
