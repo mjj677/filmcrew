@@ -11,6 +11,7 @@ import Auth from "@/pages/Auth";
 import AuthCallback from "@/pages/AuthCallback";
 import Inbox from "@/pages/Inbox";
 import Profile from "@/pages/Profile";
+import Connections from "@/pages/Connections"
 
 function App() {
 
@@ -29,6 +30,7 @@ function App() {
         <Route path="/jobs/:id" element={<div>Job detail</div>} />
         <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
       </Route>
     </Routes>
   );
