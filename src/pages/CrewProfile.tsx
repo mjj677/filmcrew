@@ -8,6 +8,7 @@ import { CrewProfileHeader } from "@/components/crew/CrewProfileHeader";
 import { CrewProfileDetails } from "@/components/crew/CrewProfileDetails";
 import { CrewProfileSkeleton } from "@/components/crew/CrewProfileSkeleton";
 import { CrewProfileNotFound } from "@/components/crew/CrewProfileNotFound";
+import { ConnectButton } from "@/components/crew/ConnectButton";
 
 function CrewProfile() {
   const { username } = useParams<{ username: string }>();
@@ -47,7 +48,7 @@ function CrewProfile() {
       </Helmet>
 
       <div className="mx-auto max-w-2xl">
-        {/* Back link + edit button */}
+        {/* Back link + actions */}
         <div className="mb-6 flex items-center justify-between">
           <Button asChild variant="ghost" size="sm" className="gap-1">
             <Link to="/crew">
@@ -56,11 +57,18 @@ function CrewProfile() {
             </Link>
           </Button>
 
-          {isOwnProfile && (
-            <Button asChild variant="outline" size="sm">
-              <Link to="/profile">Edit profile</Link>
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isOwnProfile ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/profile">Edit profile</Link>
+              </Button>
+            ) : (
+              <ConnectButton
+                targetUserId={profile.id}
+                targetName={profile.display_name ?? profile.username}
+              />
+            )}
+          </div>
         </div>
 
         <CrewProfileHeader profile={profile} />
