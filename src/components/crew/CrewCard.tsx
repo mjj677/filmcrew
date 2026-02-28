@@ -10,6 +10,7 @@ import { saveScrollPosition } from "@/hooks/useScrollRestoration";
 import type { Profile } from "@/types/models";
 
 const MAX_VISIBLE_SKILLS = 3;
+const BIO_PREVIEW_LENGTH = 100;
 
 type CrewCardProps = {
   profile: Profile;
@@ -38,6 +39,15 @@ function getExperienceLabel(years: number | null): string | null {
   return match?.label ?? `${years} years`;
 }
 
+function truncateBio(bio: string | null): string | null {
+  if (!bio) return null;
+  if (bio.length <= BIO_PREVIEW_LENGTH) return bio;
+  // Cut at last space before limit to avoid mid-word truncation
+  const trimmed = bio.slice(0, BIO_PREVIEW_LENGTH);
+  const lastSpace = trimmed.lastIndexOf(" ");
+  return (lastSpace > 0 ? trimmed.slice(0, lastSpace) : trimmed) + "…";
+}
+
 export function CrewCard({ profile }: CrewCardProps) {
   const { pathname, search } = useLocation();
 
@@ -50,6 +60,7 @@ export function CrewCard({ profile }: CrewCardProps) {
   const visibleSkills = skills.slice(0, MAX_VISIBLE_SKILLS);
   const overflowCount = skills.length - MAX_VISIBLE_SKILLS;
   const experienceLabel = getExperienceLabel(profile.experience_years);
+  const bioPreview = truncateBio(profile.bio);
 
   const location = [profile.location, profile.country]
     .filter(Boolean)
@@ -94,6 +105,13 @@ export function CrewCard({ profile }: CrewCardProps) {
               </span>
             </div>
           </div>
+
+          {/* Bio preview */}
+          {bioPreview && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {bioPreview}
+            </p>
+          )}
 
           {/* Meta row: location + experience */}
           {(location || experienceLabel) && (
