@@ -1,9 +1,20 @@
 import { Link, useLocation } from "react-router-dom";
-import { MapPinIcon, ClockIcon } from "@phosphor-icons/react";
+import {
+  MapPinIcon,
+  ClockIcon,
+  LinkIcon,
+  ClockCountdownIcon,
+} from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AVAILABILITY_OPTIONS, EXPERIENCE_RANGES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { saveScrollPosition } from "@/hooks/useScrollRestoration";
@@ -14,6 +25,7 @@ const BIO_PREVIEW_LENGTH = 100;
 
 type CrewCardProps = {
   profile: Profile;
+  connectionStatus: "pending" | "accepted" | null;
 };
 
 function getInitials(name: string | null): string {
@@ -42,13 +54,12 @@ function getExperienceLabel(years: number | null): string | null {
 function truncateBio(bio: string | null): string | null {
   if (!bio) return null;
   if (bio.length <= BIO_PREVIEW_LENGTH) return bio;
-  // Cut at last space before limit to avoid mid-word truncation
   const trimmed = bio.slice(0, BIO_PREVIEW_LENGTH);
   const lastSpace = trimmed.lastIndexOf(" ");
   return (lastSpace > 0 ? trimmed.slice(0, lastSpace) : trimmed) + "…";
 }
 
-export function CrewCard({ profile }: CrewCardProps) {
+export function CrewCard({ profile, connectionStatus }: CrewCardProps) {
   const { pathname, search } = useLocation();
 
   function handleClick() {
@@ -68,7 +79,29 @@ export function CrewCard({ profile }: CrewCardProps) {
 
   return (
     <Link to={`/crew/${profile.username}`} onClick={handleClick} className="group block">
-      <Card className="h-full transition-colors group-hover:border-foreground/20 group-hover:bg-accent/50">
+      <Card className="relative h-full transition-colors group-hover:border-foreground/20 group-hover:bg-accent/50">
+        {/* Connection status indicator */}
+        {connectionStatus && (
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="absolute right-3 top-3 text-muted-foreground">
+                  {connectionStatus === "accepted" ? (
+                    <LinkIcon size={16} />
+                  ) : (
+                    <ClockCountdownIcon size={16} />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {connectionStatus === "accepted"
+                  ? "Connected"
+                  : "Request pending"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         <CardContent className="flex flex-col gap-4 p-4">
           {/* Header: avatar + name + availability */}
           <div className="flex items-start gap-3">
@@ -93,7 +126,6 @@ export function CrewCard({ profile }: CrewCardProps) {
                 </p>
               )}
 
-              {/* Availability badge */}
               <span className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span
                   className={cn(

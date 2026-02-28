@@ -1,5 +1,6 @@
 import { UsersIcon } from "@phosphor-icons/react";
 import { CrewCard } from "@/components/crew/CrewCard";
+import { useConnectionStatuses } from "@/hooks/useConnectionStatuses";
 import type { Profile } from "@/types/models";
 
 type CrewGridProps = {
@@ -8,6 +9,9 @@ type CrewGridProps = {
 };
 
 export function CrewGrid({ profiles, hasActiveFilters }: CrewGridProps) {
+  const profileIds = profiles.map((p) => p.id);
+  const { statuses } = useConnectionStatuses(profileIds);
+
   if (profiles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -29,7 +33,11 @@ export function CrewGrid({ profiles, hasActiveFilters }: CrewGridProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {profiles.map((profile) => (
-        <CrewCard key={profile.id} profile={profile} />
+        <CrewCard
+          key={profile.id}
+          profile={profile}
+          connectionStatus={statuses[profile.id] ?? null}
+        />
       ))}
     </div>
   );
