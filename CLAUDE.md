@@ -8,13 +8,15 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
-- **Routing:** React Router DOM 7 (layout route pattern)
-- **Data Fetching:** TanStack Query (installed, not yet wired up)
+- **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
+- **Data Fetching:** TanStack Query (wired up for Profile now)
 - **SEO:** react-helmet-async
-- **Backend:** Supabase (Postgres, Auth, Row Level Security, Edge Functions for future server-side tasks)
+- **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
 - **Package Manager:** pnpm
 - **Icons:** @phosphor-icons/react (NOT Lucide — we chose Phosphor via shadcn create)
+- **Toasts:** sonner
+- **Skeletons:** shadcn Skeleton component
 
 ## Project Structure
 
@@ -30,22 +32,38 @@ src/
 │   │   ├── NavLinks.tsx          # Nav links with animated sliding underline indicator
 │   │   ├── UserMenu.tsx          # Avatar dropdown (signed in) or sign-in button
 │   │   └── RootLayout.tsx        # Layout wrapper with Navbar + Outlet
-│   └── ui/                       # shadcn components (don't manually edit)
+│   ├── ui/                       # shadcn components (don't manually edit)
+│   ├── profile/ 
+│        ├── BasicInfoSection.tsx
+│        ├── RoleExperienceSection.tsx
+│        ├── LocationSection.tsx
+│        ├── SkillsSection.tsx
+│        ├── ShowreelSection.tsx
+│        ├── ProfileImageUpload.tsx
+│        ├── ShowreelPlayer.tsx
+│        ├── SkillsPicker.tsx
+│        ├── ClearableInput.tsx
+│        ├── ProfileSkeleton.tsx
 ├── context/
 │   └── AuthContext.tsx            # Auth state provider (session, profile, sign in/out)
+├── hooks/
+│   ├── useProfile.ts              # TanStack Query: fetch/cache profile + invalidate helper
+│   ├── useProfileForm.ts          # Profile form state/validation/save UX (toasts, scroll-to-error, dirty)
+│   └── useNavigationGuard.ts      # beforeunload-only unsaved changes guard
 ├── lib/
 │   ├── supabase.ts               # Supabase client instance (typed with Database)
+│   ├── constants.ts              # positions, availability options, predefined skills list
 │   └── utils.ts                  # shadcn cn() utility
 ├── pages/
 │   ├── Auth.tsx                  # Sign-in page (Google + email OTP)
-│   ├── AuthCallback.tsx          # Handles OAuth/magic link redirects
+│   ├── AuthCallback.tsx          # Loading screen only; auth redirect logic handled by AuthContext
 │   ├── Home.tsx                  # Landing page (stub)
 │   ├── CrewDirectory.tsx         # Browse crew members (stub)
 │   ├── CrewProfile.tsx           # Individual crew profile (stub)
 │   ├── Jobs.tsx                  # Job listings (stub)
 │   ├── PostJob.tsx               # Create job posting (stub)
 │   ├── Inbox.tsx                 # Messages — protected route (stub)
-│   └── Profile.tsx               # Edit profile — protected route (stub)
+│   └── Profile.tsx               # Thin shell; composes sections + hook + skeleton
 └── types/
     ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types` — do not manually edit
     └── models.ts                 # Convenience type exports (Profile, JobPost, etc.)
@@ -54,29 +72,62 @@ src/
 ## Key Architecture Decisions
 
 ### Auth Flow
-- Supabase Auth with Google OAuth and email OTP (magic links)
-- `handle_new_user()` Postgres trigger auto-creates a profile row on signup
-- The trigger uses `security definer` and `set search_path = public` (required for Supabase auth admin to find the profiles table)
-- AuthContext uses two separate useEffects: one for session state (onAuthStateChange), one for profile fetching (reacts to user.id changes). This avoids a Supabase deadlock where querying inside onAuthStateChange hangs.
-- Profile is fetched reactively when user changes, not inside the auth callback
+- Supabase Auth with Google OAuth and email OTP (magic links).
+- `handle_new_user()` Postgres trigger auto-creates a `profiles` row on signup.
+- **Supabase auth deadlock gotcha:** Never `await` Supabase queries inside `onAuthStateChange`.
+  - AuthContext uses `onAuthStateChange` to synchronously set session/user state.
+  - A separate `useEffect` reacts to sign-in and performs profile queries/redirection.
+- AuthCallback (`/auth/callback`) is intentionally dumb (loading screen). Redirect logic lives in AuthContext so it wins any race conditions.
+
+### First-time setup detection
+- Google sign-in auto-populates `display_name`, so we DO NOT use that to detect “fresh user”.
+- Instead, `profiles.has_completed_setup` (boolean, default false) is used.
+  - On sign-in, if `has_completed_setup = false` → redirect to `/profile?setup=1`
+  - On first successful profile save → set `has_completed_setup = true`
+
+### Server State vs Client State
+- `useAuth()` = session/auth lifecycle only (no profile fetching).
+- `useProfile()` = TanStack Query hook for profile data fetching/caching/invalidation.
+- Profile save is a TanStack `useMutation`, and on success it invalidates the cached profile query.
 
 ### Layout & Routing
 - React Router layout route pattern: `<Route element={<RootLayout />}>` wraps all pages except `/auth` and `/auth/callback`
 - RootLayout uses `<Outlet />` — consistent max-w-6xl container with responsive padding
 - Auth pages render without the navbar
 - Protected routes use `<ProtectedRoute>` wrapper that redirects to `/auth`
+- App currently uses **BrowserRouter**, not a “data router”.
+  - This means React Router’s `useBlocker` is NOT available.
+  - Unsaved changes protection is **beforeunload only** (tab close/refresh). In-app navigation blocking would require migrating to `createBrowserRouter`.
 
 ### Navbar
 - Single responsive component — no separate mobile layout
 - Icons only on mobile (`hidden md:inline` on labels), icons + labels on desktop
 - Animated sliding underline tracks active route via refs and getBoundingClientRect
-- UserMenu returns null while `isLoading` or while `session && !profile` to prevent flicker
+- UserMenu returns null while `isLoading` or while `session && !profile` to prevent flicker, pulls profile via `useProfile()`.
 - Navbar hides right-side content with `invisible` class while auth loads
 
 ### Database Types
 - `src/types/database.ts` is auto-generated from Supabase: `pnpm gen-types`
 - `src/types/models.ts` has convenience type aliases — import from here in app code
 - Only `src/lib/supabase.ts` imports the raw Database type
+
+### Profile Editor UX
+- Profile page is split into small sections + one hook; page file stays thin.
+- Loading state uses shadcn `<Skeleton />` via `ProfileSkeleton`.
+- Toasts use `sonner` (Toaster mounted in `main.tsx`).
+- Save UX:
+  - Success toast on save.
+  - Error toast on validation/server errors.
+  - Scrolls + focuses first invalid field when validation fails.
+- Clearable text inputs (X button) for display name, username, bio, city, country, showreel URL.
+- Bio has a 500-character limit + counter.
+- Skills:
+  - Search/select + removable chips.
+  - Supports predefined list + custom entries.
+  - Max 15 skills cap.
+- Select dropdowns:
+  - Use popper positioning to avoid scroll/jump bugs.
+  - Experience dropdown disables collision avoidance to keep it anchored below.
 
 ### Icons
 - ALL icons come from `@phosphor-icons/react`, using the `Icon` suffix convention (e.g. `HouseIcon`, `UsersIcon`)
@@ -178,19 +229,21 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Supabase client with typed Database
 - [x] Auth system (Google OAuth + email OTP)
 - [x] Auto-profile creation on signup (Postgres trigger)
-- [x] AuthContext with session persistence across refresh
+- [x] AuthContext with session persistence across refresh + sae sign-in side-effects (no async in onAuthStateChange)
+- [x] TanStack Query wired for Profile (useProfile hook + mutations + invalidation)
 - [x] Responsive navbar with sliding underline indicator
 - [x] UserMenu with avatar dropdown
 - [x] Protected routes (inbox, profile)
+= [x] Profile Editor (fully built + refactored sections + image upload + showreel preview + skills picker)
+= [x] Profile setup wizard redirect via `has_completed_setup`
 - [x] Layout route pattern with RootLayout
 - [x] Auto-generated database types from Supabase CLI
+- [x] Profile skeleton loading state + Sonner toasts
 - [x] Cloudflare Pages deployment
 
 ## What Needs to Be Built
 
 ### Core Features (MVP)
-- [ ] Profile editor page (edit display_name, username, bio, position, location, skills, showreel, availability)
-- [ ] Profile image upload (Supabase Storage)
 - [ ] Crew directory page (list profiles, filter by position/skills, search)
 - [ ] Crew profile page (public view of a user's profile via /crew/:username)
 - [ ] Job listings page (browse active jobs, filter by type/category/experience)

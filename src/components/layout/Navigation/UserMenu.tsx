@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +13,10 @@ import {
 import { CaretDownIcon } from "@phosphor-icons/react";
 
 export function UserMenu() {
-  const { session, profile, signOut, isLoading } = useAuth();
+  const { session, signOut, isLoading: isAuthLoading } = useAuth();
+  const { profile, isLoading: isProfileLoading } = useProfile();
 
-  if (isLoading || (session && !profile)) return null;
+  if (isAuthLoading || (session && isProfileLoading)) return null;
 
   if (!session) {
     return (

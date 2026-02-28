@@ -262,6 +262,7 @@ export type Database = {
           display_name: string | null
           email: string
           experience_years: number | null
+          has_completed_setup: boolean
           id: string
           is_premium: boolean | null
           is_verified: boolean | null
@@ -281,6 +282,7 @@ export type Database = {
           display_name?: string | null
           email: string
           experience_years?: number | null
+          has_completed_setup?: boolean
           id: string
           is_premium?: boolean | null
           is_verified?: boolean | null
@@ -300,6 +302,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           experience_years?: number | null
+          has_completed_setup?: boolean
           id?: string
           is_premium?: boolean | null
           is_verified?: boolean | null

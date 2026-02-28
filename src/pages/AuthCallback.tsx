@@ -1,16 +1,40 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 
 function AuthCallback() {
   const navigate = useNavigate();
+  const handled = useRef(false);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
+    async function handleSession(session: Session) {
+      // Prevent double-handling from multiple auth events
+      if (handled.current) return;
+      handled.current = true;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", session.user.id)
+        .single();
+
+      if (!profile?.display_name) {
+        navigate("/profile?setup=1", { replace: true });
+      } else {
         navigate("/home", { replace: true });
       }
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+        handleSession(session);
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   return (
