@@ -47,47 +47,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
   });
 
-  useEffect(() => {
-    // Get the current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id).then((profile) => {
-          setState({
-            session,
-            user: session.user,
-            profile,
-            isLoading: false,
-          });
-        });
-      } else {
-        setState((prev) => ({ ...prev, isLoading: false }));
-      }
-    });
+useEffect(() => {
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setState((prev) => ({
+      ...prev,
+      session,
+      user: session?.user ?? null,
+      isLoading: false,
+    }));
+  });
 
-    // Listen for auth changes (sign in, sign out, token refresh)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({
-          session,
-          user: session.user,
-          profile,
-          isLoading: false,
-        });
-      } else {
-        setState({
-          session: null,
-          user: null,
-          profile: null,
-          isLoading: false,
-        });
-      }
-    });
+  return () => subscription.unsubscribe();
+}, []);
 
-    return () => subscription.unsubscribe();
-  }, []);
+// Fetch profile whenever user changes
+useEffect(() => {
+  if (!state.user) {
+    setState((prev) => ({ ...prev, profile: null }));
+    return;
+  }
+
+  fetchProfile(state.user.id).then((profile) => {
+    setState((prev) => ({ ...prev, profile }));
+  });
+}, [state.user?.id]);
 
   async function signInWithOTP(email: string) {
     const { error } = await supabase.auth.signInWithOtp({ email });
