@@ -1,7 +1,5 @@
-import { ComponentExample } from "@/components/component-example";
-
-export function App() {
-return <ComponentExample />;
+function App() {
+  return <div>filmcrew</div>;
 }
 
 export default App;
