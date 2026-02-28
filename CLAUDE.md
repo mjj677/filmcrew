@@ -9,7 +9,7 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (wired up for Profile now)
+- **Data Fetching:** TanStack Query (profiles, crew directory, crew profiles)
 - **SEO:** react-helmet-async
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
@@ -27,29 +27,43 @@ src/
 │   │   ├── GoogleButton.tsx      # Google OAuth sign-in button
 │   │   ├── EmailForm.tsx         # Email OTP (magic link) form
 │   │   └── ProtectedRoute.tsx    # Redirects to /auth if not signed in
+│   ├── crew/
+│   │   ├── CrewCard.tsx          # Profile card for directory grid (bio preview, skills, availability)
+│   │   ├── CrewFilters.tsx       # Search + position/availability/skill dropdowns (URL param synced)
+│   │   ├── CrewGrid.tsx          # Responsive card grid + empty state
+│   │   ├── CrewSkeleton.tsx      # Skeleton loading grid
+│   │   ├── CrewPagination.tsx    # Previous/next pagination controls
+│   │   ├── CrewProfileHeader.tsx # Public profile hero (avatar, name, position, meta)
+│   │   ├── CrewProfileDetails.tsx# Public profile body (bio, links, skills, showreel)
+│   │   ├── CrewProfileSkeleton.tsx # Loading state for public profile
+│   │   └── CrewProfileNotFound.tsx # 404 state with link back to directory
 │   ├── layout/
 │   │   ├── Navbar.tsx            # Sticky top nav, composes NavLinks + UserMenu
 │   │   ├── NavLinks.tsx          # Nav links with animated sliding underline indicator
 │   │   ├── UserMenu.tsx          # Avatar dropdown (signed in) or sign-in button
 │   │   └── RootLayout.tsx        # Layout wrapper with Navbar + Outlet
 │   ├── ui/                       # shadcn components (don't manually edit)
-│   ├── profile/ 
-│        ├── BasicInfoSection.tsx
-│        ├── RoleExperienceSection.tsx
-│        ├── LocationSection.tsx
-│        ├── SkillsSection.tsx
-│        ├── ShowreelSection.tsx
-│        ├── ProfileImageUpload.tsx
-│        ├── ShowreelPlayer.tsx
-│        ├── SkillsPicker.tsx
-│        ├── ClearableInput.tsx
-│        ├── ProfileSkeleton.tsx
+│   ├── profile/
+│   │   ├── BasicInfoSection.tsx
+│   │   ├── RoleExperienceSection.tsx
+│   │   ├── LocationSection.tsx
+│   │   ├── SkillsSection.tsx
+│   │   ├── LinksSection.tsx      # IMDb + website URL fields
+│   │   ├── ShowreelSection.tsx
+│   │   ├── ProfileImageUpload.tsx
+│   │   ├── ShowreelPlayer.tsx    # YouTube thumbnail → iframe player (reused on crew profile)
+│   │   ├── SkillsPicker.tsx
+│   │   ├── ClearableInput.tsx
+│   │   └── ProfileSkeleton.tsx
 ├── context/
 │   └── AuthContext.tsx            # Auth state provider (session, profile, sign in/out)
 ├── hooks/
-│   ├── useProfile.ts              # TanStack Query: fetch/cache profile + invalidate helper
-│   ├── useProfileForm.ts          # Profile form state/validation/save UX (toasts, scroll-to-error, dirty)
-│   └── useNavigationGuard.ts      # beforeunload-only unsaved changes guard
+│   ├── useProfile.ts             # TanStack Query: fetch/cache own profile + invalidate helper
+│   ├── useProfileForm.ts         # Profile form state/validation/save UX (toasts, scroll-to-error, dirty)
+│   ├── useCrewDirectory.ts       # TanStack Query: paginated/filtered crew list, URL param state
+│   ├── useCrewProfile.ts         # TanStack Query: fetch single profile by username
+│   ├── useScrollRestoration.ts   # Save/restore scroll position for directory ↔ profile navigation
+│   └── useNavigationGuard.ts     # beforeunload-only unsaved changes guard
 ├── lib/
 │   ├── supabase.ts               # Supabase client instance (typed with Database)
 │   ├── constants.ts              # positions, availability options, predefined skills list
@@ -58,12 +72,12 @@ src/
 │   ├── Auth.tsx                  # Sign-in page (Google + email OTP)
 │   ├── AuthCallback.tsx          # Loading screen only; auth redirect logic handled by AuthContext
 │   ├── Home.tsx                  # Landing page (stub)
-│   ├── CrewDirectory.tsx         # Browse crew members (stub)
-│   ├── CrewProfile.tsx           # Individual crew profile (stub)
+│   ├── CrewDirectory.tsx         # Browse crew — composes filters + grid + pagination
+│   ├── CrewProfile.tsx           # Public profile — composes header + details + back/edit nav
 │   ├── Jobs.tsx                  # Job listings (stub)
 │   ├── PostJob.tsx               # Create job posting (stub)
 │   ├── Inbox.tsx                 # Messages — protected route (stub)
-│   └── Profile.tsx               # Thin shell; composes sections + hook + skeleton
+│   └── Profile.tsx               # Edit profile — thin shell composing sections + hook + skeleton
 └── types/
     ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types` — do not manually edit
     └── models.ts                 # Convenience type exports (Profile, JobPost, etc.)
@@ -80,23 +94,32 @@ src/
 - AuthCallback (`/auth/callback`) is intentionally dumb (loading screen). Redirect logic lives in AuthContext so it wins any race conditions.
 
 ### First-time setup detection
-- Google sign-in auto-populates `display_name`, so we DO NOT use that to detect “fresh user”.
+- Google sign-in auto-populates `display_name`, so we DO NOT use that to detect "fresh user".
 - Instead, `profiles.has_completed_setup` (boolean, default false) is used.
   - On sign-in, if `has_completed_setup = false` → redirect to `/profile?setup=1`
   - On first successful profile save → set `has_completed_setup = true`
 
 ### Server State vs Client State
 - `useAuth()` = session/auth lifecycle only (no profile fetching).
-- `useProfile()` = TanStack Query hook for profile data fetching/caching/invalidation.
-- Profile save is a TanStack `useMutation`, and on success it invalidates the cached profile query.
+- `useProfile()` = TanStack Query hook for own profile data fetching/caching/invalidation.
+- `useCrewDirectory()` = TanStack Query hook for paginated crew list with URL param filters.
+- `useCrewProfile()` = TanStack Query hook for fetching a single profile by username.
+- Profile save is a TanStack `useMutation`, and on success it invalidates the own profile, crew profile, and crew directory caches.
+
+### Cache Invalidation Strategy
+- Profile save invalidates three query families:
+  - `["profiles", userId]` — own profile cache
+  - `["crew-profile"]` — all cached crew profile pages
+  - `["crew"]` — all cached directory pages
+- `useInvalidateProfile()` returns a promise so callers can `await` before navigating (prevents stale cache bugs).
 
 ### Layout & Routing
 - React Router layout route pattern: `<Route element={<RootLayout />}>` wraps all pages except `/auth` and `/auth/callback`
 - RootLayout uses `<Outlet />` — consistent max-w-6xl container with responsive padding
 - Auth pages render without the navbar
 - Protected routes use `<ProtectedRoute>` wrapper that redirects to `/auth`
-- App currently uses **BrowserRouter**, not a “data router”.
-  - This means React Router’s `useBlocker` is NOT available.
+- App currently uses **BrowserRouter**, not a "data router".
+  - This means React Router's `useBlocker` is NOT available.
   - Unsaved changes protection is **beforeunload only** (tab close/refresh). In-app navigation blocking would require migrating to `createBrowserRouter`.
 
 ### Navbar
@@ -113,21 +136,43 @@ src/
 
 ### Profile Editor UX
 - Profile page is split into small sections + one hook; page file stays thin.
+- Form state initialised with lazy `useState(() => buildInitialForm(profile))` to avoid stale data on mount.
 - Loading state uses shadcn `<Skeleton />` via `ProfileSkeleton`.
 - Toasts use `sonner` (Toaster mounted in `main.tsx`).
 - Save UX:
   - Success toast on save.
   - Error toast on validation/server errors.
   - Scrolls + focuses first invalid field when validation fails.
-- Clearable text inputs (X button) for display name, username, bio, city, country, showreel URL.
+  - Navigates to `/crew/:username` after save (awaits cache invalidation first).
+- Clearable text inputs (X button) for display name, username, bio, city, country, showreel URL, IMDb, website.
 - Bio has a 500-character limit + counter.
 - Skills:
   - Search/select + removable chips.
   - Supports predefined list + custom entries.
   - Max 15 skills cap.
+- Links:
+  - IMDb URL validated against imdb.com domain.
+  - Website URL validated as valid http/https URL.
 - Select dropdowns:
   - Use popper positioning to avoid scroll/jump bugs.
   - Experience dropdown disables collision avoidance to keep it anchored below.
+
+### Crew Directory
+- Server-side filtering via Supabase PostgREST: `.ilike()` for text search, `.eq()` for exact matches, `.contains()` for skills array.
+- Filter state stored in URL search params — shareable/bookmarkable.
+- Search input debounced at 300ms to avoid excessive queries.
+- Only profiles with `has_completed_setup = true` appear.
+- Sorted by availability (available first) then most recently updated.
+- Pagination: 12 per page, `keepPreviousData` for smooth transitions.
+- Scroll restoration: position saved on card click, restored after data loads on back navigation.
+- Scroll to top (smooth) on page change.
+
+### Crew Profile (Public View)
+- Fetched by username via `useCrewProfile`.
+- Shows full bio, all skills (no truncation), showreel player, and links (IMDb + website).
+- Website URL displayed with cleaned hostname (strips protocol/www/trailing slash).
+- "Edit profile" button shown when viewing own profile.
+- 404 state with link back to directory.
 
 ### Icons
 - ALL icons come from `@phosphor-icons/react`, using the `Icon` suffix convention (e.g. `HouseIcon`, `UsersIcon`)
@@ -146,9 +191,11 @@ Seven tables with RLS enabled on all:
 - Extends auth.users (id is FK to auth.users)
 - username (unique), display_name, email, bio, position, location, country
 - profile_image_url, showreel_url (YouTube embed)
+- imdb_url, website_url
 - skills (text array — for filtering), experience_years
 - availability_status: 'available' | 'busy' | 'not_looking'
 - is_verified, is_premium (for future features)
+- has_completed_setup (boolean, default false)
 - Auto-created on signup via trigger
 
 ### connections
@@ -229,31 +276,36 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Supabase client with typed Database
 - [x] Auth system (Google OAuth + email OTP)
 - [x] Auto-profile creation on signup (Postgres trigger)
-- [x] AuthContext with session persistence across refresh + sae sign-in side-effects (no async in onAuthStateChange)
-- [x] TanStack Query wired for Profile (useProfile hook + mutations + invalidation)
+- [x] AuthContext with session persistence across refresh + safe sign-in side-effects (no async in onAuthStateChange)
+- [x] TanStack Query wired for profiles (useProfile, useCrewDirectory, useCrewProfile)
 - [x] Responsive navbar with sliding underline indicator
 - [x] UserMenu with avatar dropdown
 - [x] Protected routes (inbox, profile)
-= [x] Profile Editor (fully built + refactored sections + image upload + showreel preview + skills picker)
-= [x] Profile setup wizard redirect via `has_completed_setup`
+- [x] Profile Editor (sections + image upload + showreel preview + skills picker + links)
+- [x] Profile setup wizard redirect via `has_completed_setup`
 - [x] Layout route pattern with RootLayout
 - [x] Auto-generated database types from Supabase CLI
 - [x] Profile skeleton loading state + Sonner toasts
 - [x] Cloudflare Pages deployment
+- [x] Crew Directory (search, filter by position/availability/skill, pagination, sorted by availability)
+- [x] Crew Profile public view (header, bio, skills, links, showreel, 404 state)
+- [x] Bio preview on directory cards
+- [x] IMDb + website URL on profiles (schema, editor, public view)
+- [x] Scroll restoration for directory ↔ profile navigation
+- [x] Cross-cache invalidation on profile save (own profile + crew profile + directory)
+- [x] Dev seed data (24 fake profiles via SQL, removable)
 
 ## What Needs to Be Built
 
 ### Core Features (MVP)
-- [ ] Crew directory page (list profiles, filter by position/skills, search)
-- [ ] Crew profile page (public view of a user's profile via /crew/:username)
-- [ ] Job listings page (browse active jobs, filter by type/category/experience)
-- [ ] Job detail page (/jobs/:id)
-- [ ] Post job page (create job form)
-- [ ] Job application flow (apply with cover message)
 - [ ] Connection system (send request, accept/decline, view connections, mutual connections)
 - [ ] Messaging system (create conversation via "Contact" button on profiles, send/receive messages, unread indicators)
 - [ ] Email notifications for new messages (Supabase Edge Function)
 - [ ] Inbox page with conversation list and chat view
+- [ ] Job listings page (browse active jobs, filter by type/category/experience)
+- [ ] Job detail page (/jobs/:id)
+- [ ] Post job page (create job form)
+- [ ] Job application flow (apply with cover message)
 
 ### Future Features (post-MVP)
 - [ ] Stripe integration for premium tier
@@ -281,3 +333,8 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 5. **shadcn components:** Use shadcn's built-in components before creating custom ones. Install new ones with `npx shadcn@latest add <component> -y`.
 6. **Environment variables:** Only `VITE_` prefixed vars are available in the browser. `SUPABASE_ACCESS_TOKEN` is CLI-only.
 7. **NavLinks indicator:** Uses `pathname ===` for exact matching (not `startsWith`) to prevent false matches on nested routes.
+8. **Profile form initialisation:** Use lazy `useState(() => buildInitialForm(profile))` — not `useState(buildInitialForm(null))` — to avoid stale empty form when TanStack Query cache has data.
+9. **Cache invalidation on save:** Always `await` invalidation before navigating. Invalidate all related query families (own profile, crew profile, crew directory) to prevent stale data across views.
+10. **Select "all" sentinel:** shadcn Select doesn't support empty string values. Use a sentinel value like `"__all__"` and map it back to `""` in the filter handler.
+11. **UUID LIKE queries:** Postgres UUIDs need `::text` cast for LIKE operations (e.g. `WHERE id::text LIKE '...'`).
+12. **React 19 useRef:** Requires explicit initial value — use `useRef<T>(undefined)` not `useRef<T>()`.
