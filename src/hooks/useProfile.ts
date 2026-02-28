@@ -51,7 +51,8 @@ export function useInvalidateProfile() {
 
   return () => {
     if (user?.id) {
-      queryClient.invalidateQueries({ queryKey: profileKeys.detail(user.id) });
+      return queryClient.invalidateQueries({ queryKey: profileKeys.detail(user.id) });
     }
+    return Promise.resolve();
   };
 }

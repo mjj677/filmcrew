@@ -264,6 +264,7 @@ export type Database = {
           experience_years: number | null
           has_completed_setup: boolean
           id: string
+          imdb_url: string | null
           is_premium: boolean | null
           is_verified: boolean | null
           location: string | null
@@ -273,6 +274,7 @@ export type Database = {
           skills: string[] | null
           updated_at: string
           username: string
+          website_url: string | null
         }
         Insert: {
           availability_status?: string | null
@@ -284,6 +286,7 @@ export type Database = {
           experience_years?: number | null
           has_completed_setup?: boolean
           id: string
+          imdb_url?: string | null
           is_premium?: boolean | null
           is_verified?: boolean | null
           location?: string | null
@@ -293,6 +296,7 @@ export type Database = {
           skills?: string[] | null
           updated_at?: string
           username: string
+          website_url?: string | null
         }
         Update: {
           availability_status?: string | null
@@ -304,6 +308,7 @@ export type Database = {
           experience_years?: number | null
           has_completed_setup?: boolean
           id?: string
+          imdb_url?: string | null
           is_premium?: boolean | null
           is_verified?: boolean | null
           location?: string | null
@@ -313,6 +318,7 @@ export type Database = {
           skills?: string[] | null
           updated_at?: string
           username?: string
+          website_url?: string | null
         }
         Relationships: []
       }

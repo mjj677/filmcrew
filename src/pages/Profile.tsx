@@ -12,6 +12,7 @@ import { ShowreelSection } from "@/components/profile/ShowreelSection";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { useProfileForm } from "@/hooks/useProfileForm";
 import { useNavigationGuard } from "@/hooks/useNavigationGuard";
+import { LinksSection } from "@/components/profile/LinksSection";
 
 function Profile() {
   const navigate = useNavigate();
@@ -77,6 +78,8 @@ function Profile() {
           <RoleExperienceSection form={form} updateField={updateField} />
           <Separator />
           <LocationSection form={form} updateField={updateField} />
+          <Separator />
+          <LinksSection form={form} errors={errors} updateField={updateField} />
           <Separator />
           <SkillsSection form={form} updateField={updateField} />
           <Separator />
