@@ -5,74 +5,68 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/types/models";
 
 type AuthState = {
   session: Session | null;
   user: SupabaseUser | null;
-  profile: Profile | null;
   isLoading: boolean;
 };
 
-type AuthContext = AuthState & {
+type AuthContextValue = AuthState & {
   signInWithOTP: (email: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContext | null>(null);
-
-async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
-
-  if (error) {
-    console.error("Failed to fetch profile:", error.message);
-    return null;
-  }
-
-  return data;
-}
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [state, setState] = useState<AuthState>({
     session: null,
     user: null,
-    profile: null,
     isLoading: true,
   });
+  const [isNewSignIn, setIsNewSignIn] = useState(false);
 
-useEffect(() => {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setState((prev) => ({
-      ...prev,
-      session,
-      user: session?.user ?? null,
-      isLoading: false,
-    }));
-  });
+  // Listen for auth state changes
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setState({
+        session,
+        user: session?.user ?? null,
+        isLoading: false,
+      });
 
-  return () => subscription.unsubscribe();
-}, []);
+      if (event === "SIGNED_IN") {
+        setIsNewSignIn(true);
+      }
+    });
 
-// Fetch profile whenever user changes
-useEffect(() => {
-  if (!state.user) {
-    setState((prev) => ({ ...prev, profile: null }));
-    return;
-  }
+    return () => subscription.unsubscribe();
+  }, []);
 
-  fetchProfile(state.user.id).then((profile) => {
-    setState((prev) => ({ ...prev, profile }));
-  });
-}, [state.user?.id]);
+  // Separate effect: check setup status after a new sign-in
+  useEffect(() => {
+    if (!isNewSignIn || !state.user) return;
+    setIsNewSignIn(false);
+
+    supabase
+      .from("profiles")
+      .select("has_completed_setup")
+      .eq("id", state.user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data?.has_completed_setup) {
+          navigate("/profile?setup=1", { replace: true });
+        }
+      });
+  }, [isNewSignIn, state.user, navigate]);
 
   async function signInWithOTP(email: string) {
     const { error } = await supabase.auth.signInWithOtp({ email });
