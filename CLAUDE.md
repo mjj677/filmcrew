@@ -9,9 +9,9 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (profiles, crew directory, crew profiles)
+- **Data Fetching:** TanStack Query (profiles, crew directory, crew profiles, connections, conversations, messages)
 - **SEO:** react-helmet-async
-- **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
+- **Backend:** Supabase (Postgres, Auth, RLS, Realtime, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
 - **Package Manager:** pnpm
 - **Icons:** @phosphor-icons/react (NOT Lucide — we chose Phosphor via shadcn create)
@@ -27,19 +27,27 @@ src/
 │   │   ├── GoogleButton.tsx      # Google OAuth sign-in button
 │   │   ├── EmailForm.tsx         # Email OTP (magic link) form
 │   │   └── ProtectedRoute.tsx    # Redirects to /auth if not signed in
+│   ├── connections/
+│   │   ├── ConnectButton.tsx     # Connection action button (send/withdraw/accept/decline/remove)
+│   │   ├── ConnectionCard.tsx    # Connection list item with profile info + actions
+│   │   └── ConnectionsList.tsx   # Full connections list with tabs/filtering
 │   ├── crew/
-│   │   ├── CrewCard.tsx          # Profile card for directory grid (bio preview, skills, availability)
+│   │   ├── CrewCard.tsx          # Profile card for directory grid (bio preview, skills, availability, connection indicator)
 │   │   ├── CrewFilters.tsx       # Search + position/availability/skill dropdowns (URL param synced)
-│   │   ├── CrewGrid.tsx          # Responsive card grid + empty state
+│   │   ├── CrewGrid.tsx          # Responsive card grid + empty state (fetches + passes connection statuses)
 │   │   ├── CrewSkeleton.tsx      # Skeleton loading grid
 │   │   ├── CrewPagination.tsx    # Previous/next pagination controls
-│   │   ├── CrewProfileHeader.tsx # Public profile hero (avatar, name, position, meta)
+│   │   ├── CrewProfileHeader.tsx # Public profile hero (avatar, name, position, meta, connect + message buttons)
 │   │   ├── CrewProfileDetails.tsx# Public profile body (bio, links, skills, showreel)
 │   │   ├── CrewProfileSkeleton.tsx # Loading state for public profile
 │   │   └── CrewProfileNotFound.tsx # 404 state with link back to directory
+│   ├── inbox/
+│   │   ├── ConversationList.tsx  # Sidebar list of conversations with unread indicators
+│   │   ├── ChatView.tsx          # Message thread with header, messages, typing indicator, input
+│   │   └── ChatBubble.tsx        # Individual message bubble (sent/received styling)
 │   ├── layout/
 │   │   ├── Navbar.tsx            # Sticky top nav, composes NavLinks + UserMenu
-│   │   ├── NavLinks.tsx          # Nav links with animated sliding underline indicator
+│   │   ├── NavLinks.tsx          # Nav links with animated sliding underline + unread badge on Inbox
 │   │   ├── UserMenu.tsx          # Avatar dropdown (signed in) or sign-in button
 │   │   └── RootLayout.tsx        # Layout wrapper with Navbar + Outlet
 │   ├── ui/                       # shadcn components (don't manually edit)
@@ -62,6 +70,13 @@ src/
 │   ├── useProfileForm.ts         # Profile form state/validation/save UX (toasts, scroll-to-error, dirty)
 │   ├── useCrewDirectory.ts       # TanStack Query: paginated/filtered crew list, URL param state
 │   ├── useCrewProfile.ts         # TanStack Query: fetch single profile by username
+│   ├── useConnection.ts          # Single connection lifecycle (send/withdraw/accept/decline/remove)
+│   ├── useConnections.ts         # List all connections for current user
+│   ├── useConnectionStatuses.ts  # Batch-fetch connection statuses for directory cards
+│   ├── useConversations.ts       # TanStack Query: conversation list with previews + Realtime updates
+│   ├── useMessages.ts            # TanStack Query: messages for a conversation + Realtime + mark-as-read + typing
+│   ├── useStartConversation.ts   # Find or create 1:1 conversation via RPC, navigate to inbox
+│   ├── useUnreadCount.ts         # Global unread message count via RPC + Realtime (powers navbar badge)
 │   ├── useScrollRestoration.ts   # Save/restore scroll position for directory ↔ profile navigation
 │   └── useNavigationGuard.ts     # beforeunload-only unsaved changes guard
 ├── lib/
@@ -74,9 +89,10 @@ src/
 │   ├── Home.tsx                  # Landing page (stub)
 │   ├── CrewDirectory.tsx         # Browse crew — composes filters + grid + pagination
 │   ├── CrewProfile.tsx           # Public profile — composes header + details + back/edit nav
+│   ├── Connections.tsx           # Connections list — protected route
 │   ├── Jobs.tsx                  # Job listings (stub)
 │   ├── PostJob.tsx               # Create job posting (stub)
-│   ├── Inbox.tsx                 # Messages — protected route (stub)
+│   ├── Inbox.tsx                 # Messages — conversation list + chat view, responsive layout
 │   └── Profile.tsx               # Edit profile — thin shell composing sections + hook + skeleton
 └── types/
     ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types` — do not manually edit
@@ -104,6 +120,12 @@ src/
 - `useProfile()` = TanStack Query hook for own profile data fetching/caching/invalidation.
 - `useCrewDirectory()` = TanStack Query hook for paginated crew list with URL param filters.
 - `useCrewProfile()` = TanStack Query hook for fetching a single profile by username.
+- `useConnection()` = TanStack Query hook for single connection lifecycle with a target user.
+- `useConnections()` = TanStack Query hook for listing all of the current user's connections.
+- `useConnectionStatuses()` = Batch-fetch connection statuses for a page of directory cards (single query).
+- `useConversations()` = TanStack Query hook for conversation list with message previews and unread counts.
+- `useMessages()` = TanStack Query hook for a single conversation's messages with Realtime subscription.
+- `useUnreadCount()` = Global unread count via RPC, powers the navbar badge.
 - Profile save is a TanStack `useMutation`, and on success it invalidates the own profile, crew profile, and crew directory caches.
 
 ### Cache Invalidation Strategy
@@ -111,6 +133,9 @@ src/
   - `["profiles", userId]` — own profile cache
   - `["crew-profile"]` — all cached crew profile pages
   - `["crew"]` — all cached directory pages
+- Messaging mark-as-read invalidates:
+  - `["conversations"]` — conversation list (unread counts)
+  - `["unread-count"]` — navbar badge
 - `useInvalidateProfile()` returns a promise so callers can `await` before navigating (prevents stale cache bugs).
 
 ### Layout & Routing
@@ -126,6 +151,7 @@ src/
 - Single responsive component — no separate mobile layout
 - Icons only on mobile (`hidden md:inline` on labels), icons + labels on desktop
 - Animated sliding underline tracks active route via refs and getBoundingClientRect
+- Inbox link shows unread badge (count from `useUnreadCount`)
 - UserMenu returns null while `isLoading` or while `session && !profile` to prevent flicker, pulls profile via `useProfile()`.
 - Navbar hides right-side content with `invisible` class while auth loads
 
@@ -166,13 +192,37 @@ src/
 - Pagination: 12 per page, `keepPreviousData` for smooth transitions.
 - Scroll restoration: position saved on card click, restored after data loads on back navigation.
 - Scroll to top (smooth) on page change.
+- Connection status indicators on cards (connected/pending) via batched `useConnectionStatuses` query.
 
 ### Crew Profile (Public View)
 - Fetched by username via `useCrewProfile`.
 - Shows full bio, all skills (no truncation), showreel player, and links (IMDb + website).
 - Website URL displayed with cleaned hostname (strips protocol/www/trailing slash).
+- ConnectButton for connection lifecycle (send/withdraw/accept/decline/remove).
+- Message button to start/resume conversation (via `useStartConversation`).
 - "Edit profile" button shown when viewing own profile.
 - 404 state with link back to directory.
+
+### Connection System
+- Full lifecycle: send request → pending → accept/decline → connected → remove.
+- `useConnection(targetUserId)` manages single connection state and mutations.
+- `useConnections()` fetches all connections for the current user (for `/connections` page).
+- `useConnectionStatuses(userIds)` batch-fetches statuses for a page of directory cards — single query instead of N per card.
+- ConnectButton renders appropriate action based on connection state (context-aware labels + icons).
+- Directory cards show subtle connection indicator (connected/pending) with tooltip.
+
+### Messaging System
+- **Supabase Realtime** for live message delivery and typing indicators.
+- Realtime enabled on `messages`, `conversations`, and `conversation_participants` tables.
+- `find_or_create_conversation` RPC (security definer) finds existing 1:1 or creates new — avoids RLS circular dependency.
+- `get_unread_count` RPC (security definer) counts unread messages server-side — replaces broken PostgREST subquery.
+- `is_conversation_member` helper function (security definer) breaks circular RLS on `conversation_participants`.
+- `useStartConversation` — single RPC call to find/create conversation, navigates to `/inbox/:id`.
+- `useConversations` — fetches conversation list with other participant profiles, last message preview, unread counts. Realtime subscription for live updates. `refetchOnMount: "always"` to prevent stale inbox.
+- `useMessages` — fetches messages for active conversation. Realtime INSERT subscription for live messages. Mark-as-read on view (with `markedIdsRef` to prevent loops). Typing indicators via Supabase broadcast channels. `staleTime: 0` to always fetch fresh data.
+- `useUnreadCount` — global unread count via RPC, Realtime subscription on message changes, powers navbar badge. Exported `unreadKeys` for cross-hook invalidation.
+- Inbox page: responsive split layout (sidebar list + chat view). Mobile shows one or the other. Desktop shows both side-by-side.
+- ChatView: message bubbles, auto-scroll to bottom, typing indicator animation, textarea input with Enter to send.
 
 ### Icons
 - ALL icons come from `@phosphor-icons/react`, using the `Icon` suffix convention (e.g. `HouseIcon`, `UsersIcon`)
@@ -214,7 +264,7 @@ Seven tables with RLS enabled on all:
 
 ### messages
 - conversation_id, sender_id, body, read_at (null = unread)
-- RLS: only conversation participants can read/send
+- RLS: only conversation participants can read/send/update
 
 ### job_posts
 - posted_by (FK to profiles), title, company, description
@@ -227,15 +277,46 @@ Seven tables with RLS enabled on all:
 - Unique on (job_id, applicant_id) — one application per job per user
 - Visible to both applicant and job poster
 
+## Database Functions (RPCs)
+
+### find_or_create_conversation(target_user_id uuid) → uuid
+- Security definer, bypasses RLS
+- Finds existing 1:1 conversation between caller and target, or creates one
+- Prevents self-conversations
+- Used by `useStartConversation` hook
+
+### get_unread_count() → integer
+- Security definer, bypasses RLS
+- Counts messages where caller is a participant but not sender, and read_at is null
+- Used by `useUnreadCount` hook
+
+### is_conversation_member(conv_id uuid) → boolean
+- Security definer helper function
+- Checks if auth.uid() is a participant in the given conversation
+- Used by RLS policies on `conversation_participants` and `messages` to break circular self-referencing
+
 ## RLS Policy Summary
 
 - **Profiles:** Public read, owner insert/update/delete
 - **Connections:** Participants can read, requester can create, recipient can accept/decline, either can delete
 - **Conversations:** Participants can read, any authenticated user can create
-- **Conversation participants:** Participants can view co-participants, authenticated users can add
-- **Messages:** Participants can read/send/update (mark read)
+- **Conversation participants:** Participants can view co-participants (via `is_conversation_member` helper), authenticated users can add
+- **Messages:** Participants can read/send/update via `is_conversation_member` helper (breaks circular RLS dependency)
 - **Job posts:** Public read (active only), poster can create/update/delete
 - **Job applications:** Applicant can read own, poster can read for their jobs, applicant can create, poster can update status
+
+## Supabase Realtime
+
+Realtime publication enabled on:
+- `messages` — live message delivery in chat
+- `conversations` — conversation list updates
+- `conversation_participants` — participant changes
+
+Used for:
+- Live message delivery (Postgres Changes INSERT on messages)
+- Typing indicators (Broadcast channels per conversation)
+- Inbox list refresh (Postgres Changes on messages)
+- Unread badge refresh (Postgres Changes on messages)
 
 ## Routes
 
@@ -245,12 +326,14 @@ Seven tables with RLS enabled on all:
 | `/home` | No | Home |
 | `/crew` | No | CrewDirectory |
 | `/crew/:username` | No | CrewProfile |
+| `/connections` | **Yes** | Connections |
 | `/jobs` | No | Jobs |
 | `/jobs/post` | No | PostJob |
 | `/jobs/:id` | No | Job detail (stub) |
 | `/auth` | No | Auth (sign in) |
 | `/auth/callback` | No | AuthCallback |
 | `/inbox` | **Yes** | Inbox |
+| `/inbox/:conversationId` | **Yes** | Inbox (with active chat) |
 | `/profile` | **Yes** | Profile |
 
 ## Environment Variables
@@ -278,9 +361,9 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Auto-profile creation on signup (Postgres trigger)
 - [x] AuthContext with session persistence across refresh + safe sign-in side-effects (no async in onAuthStateChange)
 - [x] TanStack Query wired for profiles (useProfile, useCrewDirectory, useCrewProfile)
-- [x] Responsive navbar with sliding underline indicator
+- [x] Responsive navbar with sliding underline indicator + unread badge
 - [x] UserMenu with avatar dropdown
-- [x] Protected routes (inbox, profile)
+- [x] Protected routes (inbox, profile, connections)
 - [x] Profile Editor (sections + image upload + showreel preview + skills picker + links)
 - [x] Profile setup wizard redirect via `has_completed_setup`
 - [x] Layout route pattern with RootLayout
@@ -294,14 +377,22 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Scroll restoration for directory ↔ profile navigation
 - [x] Cross-cache invalidation on profile save (own profile + crew profile + directory)
 - [x] Dev seed data (24 fake profiles via SQL, removable)
+- [x] Connection system (send/withdraw/accept/decline/remove, full lifecycle)
+- [x] Connection status indicators on directory cards (batched query)
+- [x] Connections list page (/connections)
+- [x] Messaging system with Supabase Realtime
+- [x] find_or_create_conversation RPC (bypasses RLS circular dependency)
+- [x] get_unread_count RPC (server-side unread count)
+- [x] is_conversation_member helper (breaks circular RLS on conversation_participants)
+- [x] Inbox page with conversation list + chat view (responsive split layout)
+- [x] Real-time message delivery + typing indicators
+- [x] Mark-as-read on conversation view + unread badge in navbar
+- [x] Realtime enabled on messages, conversations, conversation_participants
 
 ## What Needs to Be Built
 
 ### Core Features (MVP)
-- [ ] Connection system (send request, accept/decline, view connections, mutual connections)
-- [ ] Messaging system (create conversation via "Contact" button on profiles, send/receive messages, unread indicators)
 - [ ] Email notifications for new messages (Supabase Edge Function)
-- [ ] Inbox page with conversation list and chat view
 - [ ] Job listings page (browse active jobs, filter by type/category/experience)
 - [ ] Job detail page (/jobs/:id)
 - [ ] Post job page (create job form)
@@ -338,3 +429,8 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 10. **Select "all" sentinel:** shadcn Select doesn't support empty string values. Use a sentinel value like `"__all__"` and map it back to `""` in the filter handler.
 11. **UUID LIKE queries:** Postgres UUIDs need `::text` cast for LIKE operations (e.g. `WHERE id::text LIKE '...'`).
 12. **React 19 useRef:** Requires explicit initial value — use `useRef<T>(undefined)` not `useRef<T>()`.
+13. **RLS circular dependencies:** Self-referencing RLS policies (where a table's policy queries itself) cause PostgREST 500 errors. Fix by extracting the check into a `security definer` helper function (e.g. `is_conversation_member`).
+14. **Supabase Realtime requires publication:** Tables must be added to the `supabase_realtime` publication for Realtime subscriptions to work: `alter publication supabase_realtime add table <table_name>;`
+15. **PostgREST subquery limitations:** Supabase's JS client `.in()` with a nested `.from().select()` doesn't work as a real SQL subquery. Use an RPC instead for queries that need subselects.
+16. **Mark-as-read loop prevention:** When marking messages as read via a `useEffect` that depends on `query.data`, track already-marked IDs in a ref to prevent infinite re-fires. Use `staleTime: 0` and clear the ref on unmount.
+17. **Supabase update 204 ≠ success:** A 204 response from `.update()` means the query executed but may have matched zero rows (RLS filtered them out). Always verify the actual database state when debugging.
