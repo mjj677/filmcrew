@@ -233,6 +233,8 @@ export function useTogglePublish() {
       queryClient.invalidateQueries({
         queryKey: companyKeys.detail(companySlug),
       });
+      // Invalidate all job queries — publish state affects job visibility
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       toast.success(
         production.is_published
           ? "Production published"
@@ -290,6 +292,8 @@ export function useChangeProductionStatus() {
       queryClient.invalidateQueries({
         queryKey: companyKeys.detail(companySlug),
       });
+      // Invalidate all job queries — production status affects job visibility
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       toast.success("Production status updated");
     },
     onError: (error: Error) => {

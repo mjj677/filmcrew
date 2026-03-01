@@ -6,21 +6,21 @@ import Home from "@/pages/Home";
 import CrewDirectory from "@/pages/CrewDirectory";
 import CrewProfile from "@/pages/CrewProfile";
 import Jobs from "@/pages/Jobs";
-import PostJob from "@/pages/PostJob";
 import Auth from "@/pages/Auth";
 import AuthCallback from "@/pages/AuthCallback";
 import Inbox from "@/pages/Inbox";
 import Profile from "@/pages/Profile";
-import Connections from "@/pages/Connections"
+import Connections from "@/pages/Connections";
 import CreateCompany from "@/pages/CreateCompany";
 import CompanyDashboard from "@/pages/CompanyDashboard";
 import CreateProduction from "@/pages/CreateProduction";
 import ProductionDetail from "@/pages/ProductionDetail";
-import CompanySettings from "@/pages/CompanySettings";
 import EditProduction from "@/pages/EditProduction";
+import CreateJob from "@/pages/CreateJob";
+import JobDetail from "@/pages/JobDetail";
+import CompanySettings from "@/pages/CompanySettings";
 
 function App() {
-
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
@@ -32,8 +32,7 @@ function App() {
         <Route path="/crew" element={<CrewDirectory />} />
         <Route path="/crew/:username" element={<CrewProfile />} />
         <Route path="/jobs" element={<Jobs />} />
-        <Route path="/jobs/post" element={<ProtectedRoute><PostJob /></ProtectedRoute>} />
-        <Route path="/jobs/:id" element={<div>Job detail</div>} />
+        <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/inbox/:conversationId" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -44,6 +43,7 @@ function App() {
         <Route path="/companies/:slug/settings" element={<ProtectedRoute><CompanySettings /></ProtectedRoute>} />
         <Route path="/productions/:slug" element={<ProductionDetail />} />
         <Route path="/productions/:slug/edit" element={<ProtectedRoute><EditProduction /></ProtectedRoute>} />
+        <Route path="/productions/:slug/jobs/new" element={<ProtectedRoute><CreateJob /></ProtectedRoute>} />
       </Route>
     </Routes>
   );

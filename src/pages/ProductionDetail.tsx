@@ -79,6 +79,7 @@ function ProductionDetail() {
   const { production, company, jobs, role } = data;
   const isAdmin = role === "owner" || role === "admin";
   const status = STATUS_CONFIG[production.status] ?? STATUS_CONFIG.pre_production;
+  const isActive = !["wrapped", "cancelled"].includes(production.status);
 
   function handleTogglePublish() {
     togglePublish.mutate({
@@ -181,12 +182,14 @@ function ProductionDetail() {
                   Unpublish
                 </Button>
               )}
-              <Button asChild size="sm">
-                <Link to={`/companies/${company.slug}/productions/new`}>
-                  <PlusIcon className="mr-2 h-4 w-4" />
-                  Post a job
-                </Link>
-              </Button>
+              {isActive && (
+                <Button asChild size="sm">
+                  <Link to={`/productions/${production.slug}/jobs/new`}>
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Post a job
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -246,10 +249,20 @@ function ProductionDetail() {
               <BriefcaseIcon className="h-10 w-10 text-muted-foreground/50" />
               <p className="mt-3 font-medium">No open positions</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {isAdmin
+                {isAdmin && isActive
                   ? "Post your first job listing to start finding crew."
-                  : "Check back later — new roles may be posted soon."}
+                  : isAdmin && !isActive
+                    ? "This production is no longer active."
+                    : "Check back later — new roles may be posted soon."}
               </p>
+              {isAdmin && isActive && (
+                <Button asChild size="sm" className="mt-4">
+                  <Link to={`/productions/${production.slug}/jobs/new`}>
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Post a job
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
