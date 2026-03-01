@@ -480,16 +480,9 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] **Company public profile** (`/companies/:slug`) — public page with productions, active jobs, team roster, member-aware CTA buttons
 - [x] Fixed company links on ProductionDetail and JobDetail (were pointing to auth-required dashboard)
 - [x] RLS policy on `production_company_members` relaxed to allow public reads
+- [x] **Invitation acceptance UI** — pending company invitations surface in the UserMenu dropdown with inline Accept/Decline buttons. A dot badge on the avatar indicates pending invitations. Polls every 2 minutes (real-time not warranted for low-frequency events). Accepting immediately invalidates `useUserCompanies` so the context switcher updates without a page reload.
 
 ## What Needs to Be Built Next
-
-### HIGH PRIORITY — Completes the Core Loop
-
-The job application flow and jobs browse page are now complete. The remaining high-priority items are:
-
-#### Invitation Acceptance UI (Invitee Side)
-- [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
-- [ ] **Hook needed:** `useMyInvitations.ts` — fetch invitations where `invited_user_id = currentUser` or `invited_email = currentUser.email`, with accept/decline mutations calling the existing RPCs.
 
 ### MEDIUM PRIORITY — Important but Not Blocking
 
@@ -510,6 +503,27 @@ The job application flow and jobs browse page are now complete. The remaining hi
 - [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
 
 ### LOWER PRIORITY — Enhancement Layer
+
+#### Invitation Acceptance UI — Upgrade Path
+
+The current implementation (Option A) surfaces pending invitations inline in the UserMenu dropdown with a dot badge on the avatar. This is appropriate for the current scale where invitations are infrequent.
+
+**When to promote to a dedicated `/invitations` page (Option B):**
+This should be revisited once email notifications are wired up (see Email Notifications section below). The email will need a destination URL to deep-link into — `/invitations` is the natural target. At that point, the UserMenu section should remain as a convenience, but the dot badge should become a link that navigates to the full page rather than expanding inline.
+
+**What the `/invitations` page would include:**
+- Protected route at `/invitations`, listed in the navbar or UserMenu alongside `/applications`
+- `useMyInvitations` hook is already written and can be reused as-is
+- Full list of pending invitations (the current dropdown content, expanded)
+- Historical section showing accepted/declined/expired/revoked invitations, mirroring how `InvitationManagement.tsx` shows history on the admin side
+- Deep-linkable — the invitation email CTA button should link directly here
+
+**Hook is already built:** `useMyInvitations`, `useAcceptInvitation`, `useDeclineInvitation` are in `src/hooks/useMyInvitations.ts`. No new data layer work is needed — it's purely a UI promotion.
+
+**UserMenu changes needed at that point:**
+- The `InvitationRow` component and inline rendering in the dropdown move to the new page
+- The dot badge on the avatar becomes `<Link to="/invitations">` wrapped around the avatar trigger, or the dropdown section becomes a single "View invitations (N)" menu item linking to the page
+- The `w-64` dropdown width can revert to `w-56` once the inline invitation rows are removed
 
 #### Server-side Job Filtering (Performance)
 - [ ] **Move production status/publish filtering server-side** — currently `useJobList` fetches all active jobs then filters client-side for production state before paginating. This works at current scale but should move to a Postgres view or function for production use. The client-side pagination after filtering means page counts can be inaccurate.

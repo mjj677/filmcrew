@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { ArrowLeftIcon, WarningIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,11 @@ import { TeamManagement } from "@/components/company/TeamManagement";
 import { InvitationManagement } from "@/components/company/InvitationManagement";
 import { DangerZone } from "@/components/company/DangerZone";
 
+type ValidTab = "details" | "team" | "invitations" | "danger";
+
 function CompanySettings() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const { data, isLoading, error } = useCompanyDetail(slug);
 
   if (isLoading) {
@@ -56,6 +59,21 @@ function CompanySettings() {
   const { company, role, members } = data;
   const isOwner = role === "owner";
 
+  // Tabs available to each role:
+  // Owner: details, team, invitations, danger
+  // Admin: team, invitations (no details — can't rebrand; no danger — can't delete)
+  const validTabs: ValidTab[] = isOwner
+    ? ["details", "team", "invitations", "danger"]
+    : ["team", "invitations"];
+
+  const tabParam = searchParams.get("tab") as ValidTab | null;
+  const defaultTab: ValidTab =
+    tabParam && validTabs.includes(tabParam)
+      ? tabParam
+      : isOwner
+        ? "details"
+        : "team";
+
   return (
     <>
       <Helmet>
@@ -74,11 +92,13 @@ function CompanySettings() {
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         </div>
 
-        <Tabs defaultValue="details">
+        <Tabs defaultValue={defaultTab}>
           <TabsList className="cursor-pointer">
-            <TabsTrigger value="details" className="cursor-pointer">
-              Details
-            </TabsTrigger>
+            {isOwner && (
+              <TabsTrigger value="details" className="cursor-pointer">
+                Details
+              </TabsTrigger>
+            )}
             <TabsTrigger value="team" className="cursor-pointer">
               Team
             </TabsTrigger>
@@ -95,9 +115,11 @@ function CompanySettings() {
             )}
           </TabsList>
 
-          <TabsContent value="details" className="mt-6">
-            <EditCompanyForm company={company} />
-          </TabsContent>
+          {isOwner && (
+            <TabsContent value="details" className="mt-6">
+              <EditCompanyForm company={company} />
+            </TabsContent>
+          )}
 
           <TabsContent value="team" className="mt-6">
             <TeamManagement
