@@ -41,6 +41,13 @@ export type JobListFilters = {
   is_remote?: boolean;
 };
 
+export type JobListResult = {
+  jobs: JobWithContext[];
+  count: number;
+};
+
+export const JOB_PAGE_SIZE = 12;
+
 // ── Fetchers ──────────────────────────────────────────────
 
 async function fetchJobDetail(jobId: string): Promise<JobWithContext> {
@@ -95,7 +102,13 @@ async function fetchJobDetail(jobId: string): Promise<JobWithContext> {
   } as JobWithContext;
 }
 
-async function fetchJobList(filters: JobListFilters): Promise<JobWithContext[]> {
+async function fetchJobList(
+  filters: JobListFilters,
+  page: number = 0,
+): Promise<JobListResult> {
+  const from = page * JOB_PAGE_SIZE;
+  const to = from + JOB_PAGE_SIZE - 1;
+
   let query = supabase
     .from("job_posts")
     .select(
@@ -110,7 +123,8 @@ async function fetchJobList(filters: JobListFilters): Promise<JobWithContext[]> 
       poster:profiles!job_posts_posted_by_fkey (
         id, display_name, username, profile_image_url
       )
-    `
+    `,
+      { count: "exact" },
     )
     .eq("is_active", true)
     .eq("is_flagged", false)
@@ -136,8 +150,10 @@ async function fetchJobList(filters: JobListFilters): Promise<JobWithContext[]> 
   if (error) throw new Error(error.message);
 
   // Filter client-side: only show jobs where the production is published
-  // AND the production is not wrapped/cancelled
-  return (data ?? [])
+  // AND the production is not wrapped/cancelled.
+  // Note: We can't easily paginate after client-side filtering, so we fetch
+  // more than needed and slice. For production use, move this to a DB view.
+  const filtered = (data ?? [])
     .filter((row) => {
       const prod = row.production as any;
       // Allow legacy jobs without production_id through
@@ -161,6 +177,14 @@ async function fetchJobList(filters: JobListFilters): Promise<JobWithContext[]> 
         poster: row.poster as JobWithContext["poster"],
       } as JobWithContext;
     });
+
+  // Client-side pagination from the filtered set
+  const paged = filtered.slice(from, to + 1);
+
+  return {
+    jobs: paged,
+    count: filtered.length,
+  };
 }
 
 // ── Hooks ─────────────────────────────────────────────────
@@ -173,10 +197,15 @@ export function useJobDetail(jobId: string | undefined) {
   });
 }
 
-export function useJobList(filters: JobListFilters = {}) {
+export function useJobList(filters: JobListFilters = {}, page: number = 0) {
   return useQuery({
-    queryKey: jobKeys.list(filters as Record<string, string>),
-    queryFn: () => fetchJobList(filters),
+    queryKey: jobKeys.list({
+      ...Object.fromEntries(
+        Object.entries(filters).map(([k, v]) => [k, String(v ?? "")]),
+      ),
+      page: String(page),
+    }),
+    queryFn: () => fetchJobList(filters, page),
   });
 }
 
