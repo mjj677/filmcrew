@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import {
   HouseIcon,
   UsersIcon,
@@ -16,6 +17,7 @@ const NAV_LINKS = [
 
 export function NavLinks({ session }: { session: unknown }) {
   const { pathname } = useLocation();
+  const unreadCount = useUnreadCount();
   const containerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -68,7 +70,7 @@ export function NavLinks({ session }: { session: unknown }) {
           ref={(el) => {
             if (el) linkRefs.current.set(link.to, el);
           }}
-          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          className={`relative flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             pathname === link.to
               ? "text-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -76,6 +78,11 @@ export function NavLinks({ session }: { session: unknown }) {
         >
           <link.icon size={18} />
           <span className="hidden md:inline">{link.label}</span>
+          {link.to === "/inbox" && unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-semibold text-background">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Link>
       ))}
     </div>
