@@ -408,8 +408,8 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/productions/:slug` | No | ProductionDetail | ✅ |
 | `/productions/:slug/edit` | **Yes** | EditProduction | ✅ |
 | `/productions/:slug/jobs/new` | **Yes** | CreateJob | ✅ |
-| `/companies` | No | Browse companies | Not built |
-| `/companies/:slug` | No | Company public profile | Not built |
+| `/companies` | No | Browse companies | ✅ |
+| `/companies/:slug` | No | Company public profile | ✅ |
 
 ## Environment Variables
 
@@ -560,7 +560,6 @@ The job application flow and jobs browse page are now complete. The remaining hi
 16. **Job effective closure:** Jobs on wrapped/cancelled productions are treated as closed client-side via `isJobEffectivelyClosed()` but the `is_active` flag on the job itself is NOT changed. This is intentional — if the production is unwrapped, the jobs become active again automatically.
 17. **Job visibility depends on production state:** Both `is_published` and `status` on the production affect whether jobs are visible in the browse list. The `useJobList` hook filters client-side for both conditions. The job detail page still loads (RLS allows reading active jobs directly) but shows appropriate banners.
 18. **PostJob.tsx is dead code:** The old `/jobs/post` route and `PostJob.tsx` page have been replaced by `/productions/:slug/jobs/new` and `CreateJob.tsx`. The import has been removed from App.tsx. Delete the file.
-19. **Company link on ProductionDetail and JobDetail goes to dashboard:** Currently links to `/companies/:slug/dashboard` (auth-required). Should link to public profile `/companies/:slug` once that page is built.
 20. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. JobFilters uses `ALL = "__all__"` sentinel for the "all" option. Both avoid issues with shadcn Select not supporting empty string values.
 21. **Client-side job list pagination is approximate:** `useJobList` fetches all active jobs from Supabase, filters client-side for production status/publish state, then slices for pagination. This means the total count and page boundaries are accurate for the filtered set, but the initial fetch grows with total active jobs. At scale, this should be replaced with a server-side view or function.
 22. **Job application duplicate detection:** The unique constraint on `(job_id, applicant_id)` catches duplicates at the DB level. The `useApplyToJob` mutation detects the 23505 Postgres error code and shows a user-friendly "already applied" message. The UI also prevents this by checking `useMyApplication` before showing the form.

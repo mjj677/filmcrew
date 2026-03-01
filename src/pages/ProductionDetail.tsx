@@ -146,7 +146,7 @@ function ProductionDetail() {
 
             {/* Company link */}
             <Link
-              to={`/companies/${company.slug}/dashboard`}
+              to={`/companies/${company.slug}`}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <Avatar className="h-6 w-6 rounded">

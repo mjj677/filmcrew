@@ -126,7 +126,7 @@ function JobDetail() {
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {job.company && (
                   <Link
-                    to={`/companies/${job.company.slug}/dashboard`}
+                    to={`/companies/${job.company.slug}`}
                     className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
                   >
                     <Avatar className="h-5 w-5 rounded">

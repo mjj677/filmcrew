@@ -20,6 +20,8 @@ import EditProduction from "@/pages/EditProduction";
 import CreateJob from "@/pages/CreateJob";
 import JobDetail from "@/pages/JobDetail";
 import CompanySettings from "@/pages/CompanySettings";
+import Companies from "@/pages/Companies";
+import CompanyProfile from "@/pages/CompanyProfile";
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
         <Route path="/applications" element={<ProtectedRoute><MyApplications /></ProtectedRoute>} />
+        <Route path="/companies" element={<Companies />} />
+        <Route path="/companies/:slug" element={<CompanyProfile />} />
         <Route path="/companies/new" element={<ProtectedRoute><CreateCompany /></ProtectedRoute>} />
         <Route path="/companies/:slug/dashboard" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
         <Route path="/companies/:slug/productions/new" element={<ProtectedRoute><CreateProduction /></ProtectedRoute>} />
