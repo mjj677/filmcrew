@@ -14,6 +14,7 @@ import Profile from "@/pages/Profile";
 import Connections from "@/pages/Connections"
 import CreateCompany from "@/pages/CreateCompany";
 import CompanyDashboard from "@/pages/CompanyDashboard";
+import CreateProduction from "@/pages/CreateProduction";
 
 function App() {
 
@@ -36,6 +37,7 @@ function App() {
         <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
         <Route path="/companies/new" element={<ProtectedRoute><CreateCompany /></ProtectedRoute>} />
         <Route path="/companies/:slug/dashboard" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
+        <Route path="/companies/:slug/productions/new" element={<ProtectedRoute><CreateProduction /></ProtectedRoute>} />
       </Route>
     </Routes>
   );
