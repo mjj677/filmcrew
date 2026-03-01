@@ -480,22 +480,27 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] **Company public profile** (`/companies/:slug`) — public page with productions, active jobs, team roster, member-aware CTA buttons
 - [x] Fixed company links on ProductionDetail and JobDetail (were pointing to auth-required dashboard)
 - [x] RLS policy on `production_company_members` relaxed to allow public reads
+- [x] **Invitation acceptance UI** — pending company invitations surface in the UserMenu dropdown with inline Accept/Decline buttons and a dot badge on the avatar. Polls every 2 minutes. Accepting immediately invalidates `useUserCompanies` (context switcher) and the company public profile cache (Dashboard/Settings buttons appear without reload).
+- [x] **Company settings tab deep-linking** — `?tab=team|invitations|details|danger` URL param controls the initial tab on mount. "Manage team" on the dashboard links directly to `?tab=team`. Guard rejects param values the current role doesn't have access to.
+- [x] **Owner-only Details tab** — company Details tab (name, description, location, website) is now hidden from admins entirely. Admins land on Team by default. RLS `production_companies` UPDATE policy tightened to owner only.
+- [x] **Invitations refresh button** — manual refresh icon button added to the Invitations tab header, compensating for the absence of a real-time subscription on this low-frequency data.
 
 ## What Needs to Be Built Next
 
-### HIGH PRIORITY — Completes the Core Loop
-
-The job application flow and jobs browse page are now complete. The remaining high-priority items are:
-
-#### Invitation Acceptance UI (Invitee Side)
-- [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
-- [ ] **Hook needed:** `useMyInvitations.ts` — fetch invitations where `invited_user_id = currentUser` or `invited_email = currentUser.email`, with accept/decline mutations calling the existing RPCs.
-
 ### MEDIUM PRIORITY — Important but Not Blocking
 
-#### Job Editing & Management
-- [ ] **Edit job** — update title, description, fields. Toggle `is_active` to close/reopen a listing. Currently no edit UI exists for job posts.
-- [ ] **Job management view for company admins** — see all jobs across all productions with status, applicant counts, quick actions.
+#### Job Editing & Management ← START HERE
+
+This is the most impactful remaining gap in the core loop. Job posters currently have no way to update a listing after it's published, or to close/reopen it without deleting it.
+
+- [ ] **`EditJobForm` component** — pre-filled form with all fields from `CreateJobForm` (title, description, category, type, experience level, location, remote, compensation, deadline). Follows the same dirty-tracking pattern as `EditCompanyForm` and `EditProductionForm`. Slug not applicable — jobs use UUID-based routes.
+- [ ] **`EditJob` page** (`/jobs/:id/edit`) — thin shell wrapping `EditJobForm`, permission-gated to the job poster and company admins/owners (same `canManageApplicants` logic already on `JobDetail`).
+- [ ] **`useUpdateJob` mutation** in `useJobs.ts` — updates `job_posts` row, invalidates `jobKeys.detail(id)` and `jobKeys.list(...)`.
+- [ ] **Close/reopen toggle** — `is_active` toggle on the edit page (or directly on `JobDetail` for admins as a quick action button). Closing a job removes it from the browse list immediately due to the existing `is_active` filter. Cache invalidation: `jobKeys.detail` + all job list queries.
+- [ ] **Edit button on `JobDetail`** — visible to poster and company admins, links to `/jobs/:id/edit`. Same placement as the Edit button on `ProductionDetail`.
+- [ ] **Route**: add `/jobs/:id/edit` to `App.tsx` as a `ProtectedRoute`.
+
+**RLS note:** The existing `job_posts` UPDATE policy allows the poster to update their own jobs. Company admins/owners can also update via the existing policy. No migration needed.
 
 #### Email Notifications
 - [ ] **Invitation email** — when someone is invited to a company, send them an email. Requires a Supabase Edge Function triggered on `company_invitations` INSERT (or called from the client after invite creation) using a transactional email service (Resend, Postmark, etc.).
@@ -508,6 +513,27 @@ The job application flow and jobs browse page are now complete. The remaining hi
 
 #### Production Enhancements
 - [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
+
+#### Invitation Acceptance UI — Upgrade Path
+
+The current implementation (Option A) surfaces pending invitations inline in the UserMenu dropdown with a dot badge on the avatar. This is appropriate for the current scale where invitations are infrequent.
+
+**When to promote to a dedicated `/invitations` page (Option B):**
+This should be revisited once email notifications are wired up (see Email Notifications section below). The email will need a destination URL to deep-link into — `/invitations` is the natural target. At that point, the UserMenu section should remain as a convenience, but the dot badge should become a link that navigates to the full page rather than expanding inline.
+
+**What the `/invitations` page would include:**
+- Protected route at `/invitations`, listed in the navbar or UserMenu alongside `/applications`
+- `useMyInvitations` hook is already written and can be reused as-is
+- Full list of pending invitations (the current dropdown content, expanded)
+- Historical section showing accepted/declined/expired/revoked invitations, mirroring how `InvitationManagement.tsx` shows history on the admin side
+- Deep-linkable — the invitation email CTA button should link directly here
+
+**Hook is already built:** `useMyInvitations`, `useAcceptInvitation`, `useDeclineInvitation` are in `src/hooks/useMyInvitations.ts`. No new data layer work is needed — it's purely a UI promotion.
+
+**UserMenu changes needed at that point:**
+- The `InvitationRow` component and inline rendering in the dropdown move to the new page
+- The dot badge on the avatar becomes `<Link to="/invitations">` wrapped around the avatar trigger, or the dropdown section becomes a single "View invitations (N)" menu item linking to the page
+- The `w-64` dropdown width can revert to `w-56` once the inline invitation rows are removed
 
 ### LOWER PRIORITY — Enhancement Layer
 
@@ -565,3 +591,4 @@ The job application flow and jobs browse page are now complete. The remaining hi
 21. **Job application duplicate detection:** The unique constraint on `(job_id, applicant_id)` catches duplicates at the DB level. The `useApplyToJob` mutation detects the 23505 Postgres error code and shows a user-friendly "already applied" message. The UI also prevents this by checking `useMyApplication` before showing the form.
 22. **Job application RLS uses JOINs through 3 tables:** The company admin SELECT/UPDATE policies join `job_applications → job_posts → productions → production_company_members`. If this becomes slow at scale, create a `is_job_company_admin()` security definer helper function similar to `is_production_member()`.
 23. **Application status is a plain text field, not an enum:** The `status` column on `job_applications` is text, not a Postgres enum. Valid values are 'pending', 'reviewed', 'accepted', 'rejected' — enforced only at the application level. Consider adding a CHECK constraint or enum if needed.
+24. **Company settings Details tab is owner-only:** The `EditCompanyForm` is only reachable by owners — both the UI tab and the RLS UPDATE policy are gated to `owner_id = auth.uid()`. Admins can manage team and invitations but cannot edit company branding/details.

@@ -184,7 +184,7 @@ export function TeamManagement({ company, members, currentUserRole }: Props) {
               {/* Actions menu — only show if we can do something */}
               {(editable || removable) && (
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild className="cursor-pointer">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <DotsThreeIcon className="h-4 w-4" weight="bold" />
                     </Button>
@@ -198,6 +198,7 @@ export function TeamManagement({ company, members, currentUserRole }: Props) {
                             <DropdownMenuItem
                               key={r}
                               onClick={() => handleRoleChange(member, r)}
+                            className="cursor-pointer"
                             >
                               <ArrowsClockwiseIcon className="mr-2 h-4 w-4" />
                               Change to {ROLE_CONFIG[r].label}
@@ -210,6 +211,7 @@ export function TeamManagement({ company, members, currentUserRole }: Props) {
                       <DropdownMenuItem
                         variant="destructive"
                         onClick={() => setConfirmRemove(member)}
+                        className="cursor-pointer"
                       >
                         <TrashIcon className="mr-2 h-4 w-4" />
                         {isSelf ? "Leave company" : "Remove"}
@@ -254,10 +256,10 @@ export function TeamManagement({ company, members, currentUserRole }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => confirmRemove && handleRemove(confirmRemove)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
             >
               {removeMember.isPending ? "Removing…" : "Confirm"}
             </AlertDialogAction>

@@ -208,7 +208,7 @@ function CompanyDashboard() {
             <h2 className="text-lg font-semibold">Team</h2>
             {isAdmin && (
               <Button asChild variant="outline" size="sm">
-                <Link to={`/companies/${slug}/settings`}>
+                <Link to={`/companies/${slug}/settings?tab=team`}>
                   Manage team
                   <ArrowRightIcon className="ml-2 h-4 w-4" />
                 </Link>

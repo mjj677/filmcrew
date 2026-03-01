@@ -8,6 +8,7 @@ import {
   XCircleIcon,
   ProhibitIcon,
   WarningCircleIcon,
+  ArrowsClockwiseIcon
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +83,7 @@ type Props = {
 // ── Component ───────────────────────────────────────────
 
 export function InvitationManagement({ company, currentUserRole }: Props) {
-  const { data: invitations, isLoading } = useCompanyInvitations(company.id);
+  const { data: invitations, isLoading, refetch, isFetching } = useCompanyInvitations(company.id);
   const sendInvitation = useSendInvitation();
   const revokeInvitation = useRevokeInvitation();
 
@@ -180,7 +181,21 @@ export function InvitationManagement({ company, currentUserRole }: Props) {
 
       {/* ── Pending invitations ──────────────── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Pending invitations</h2>
+        <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pending invitations</h2>
+            <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 cursor-pointer p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                title="Refresh invitations"
+            >
+                <ArrowsClockwiseIcon
+                className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                />
+            </Button>
+        </div>
 
         {isLoading ? (
           <div className="space-y-3">
