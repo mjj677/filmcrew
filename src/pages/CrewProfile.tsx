@@ -9,6 +9,7 @@ import { CrewProfileDetails } from "@/components/crew/CrewProfileDetails";
 import { CrewProfileSkeleton } from "@/components/crew/CrewProfileSkeleton";
 import { CrewProfileNotFound } from "@/components/crew/CrewProfileNotFound";
 import { ConnectButton } from "@/components/crew/ConnectButton";
+import { MessageButton } from "@/components/crew/MessageButton";
 
 function CrewProfile() {
   const { username } = useParams<{ username: string }>();
@@ -63,10 +64,13 @@ function CrewProfile() {
                 <Link to="/profile">Edit profile</Link>
               </Button>
             ) : (
-              <ConnectButton
-                targetUserId={profile.id}
-                targetName={profile.display_name ?? profile.username}
-              />
+              <>
+                    <MessageButton targetUserId={profile.id} />
+                    <ConnectButton
+                    targetUserId={profile.id}
+                    targetName={profile.display_name ?? profile.username}
+                    />
+              </>
             )}
           </div>
         </div>

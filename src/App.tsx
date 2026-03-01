@@ -29,6 +29,7 @@ function App() {
         <Route path="/jobs/post" element={<ProtectedRoute><PostJob /></ProtectedRoute>} />
         <Route path="/jobs/:id" element={<div>Job detail</div>} />
         <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+        <Route path="/inbox/:conversationId" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
       </Route>

@@ -327,7 +327,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      find_or_create_conversation: {
+        Args: { target_user_id: string }
+        Returns: string
+      }
+      get_unread_count: { Args: never; Returns: number }
+      is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
