@@ -4,7 +4,11 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { companyKeys } from "@/hooks/useCompanies";
-import type { Production, ProductionInsert } from "@/types/models";
+import type {
+  Production,
+  ProductionInsert,
+  ProductionStatus,
+} from "@/types/models";
 
 // ── Query keys ────────────────────────────────────────────
 
@@ -128,6 +132,168 @@ export function useCreateProduction() {
     },
     onError: (error: Error) => {
       toast.error("Failed to create production", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+// ── Update mutation ───────────────────────────────────────
+
+type UpdateProductionInput = {
+  productionId: string;
+  productionSlug: string;
+  companySlug: string;
+  title?: string;
+  description?: string | null;
+  production_type?: Production["production_type"] | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  location?: string | null;
+  country?: string | null;
+  budget_range?: Production["budget_range"] | null;
+};
+
+export function useUpdateProduction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      productionId,
+      productionSlug,
+      companySlug,
+      ...fields
+    }: UpdateProductionInput) => {
+      const { data, error } = await supabase
+        .from("productions")
+        .update(fields)
+        .eq("id", productionId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return {
+        production: data as Production,
+        productionSlug,
+        companySlug,
+      };
+    },
+    onSuccess: ({ productionSlug, companySlug }) => {
+      queryClient.invalidateQueries({
+        queryKey: productionKeys.detail(productionSlug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: companyKeys.detail(companySlug),
+      });
+      toast.success("Production updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update production", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+// ── Publish / unpublish toggle ────────────────────────────
+
+export function useTogglePublish() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      productionId,
+      productionSlug,
+      companySlug,
+      publish,
+    }: {
+      productionId: string;
+      productionSlug: string;
+      companySlug: string;
+      publish: boolean;
+    }) => {
+      const { data, error } = await supabase
+        .from("productions")
+        .update({ is_published: publish })
+        .eq("id", productionId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return {
+        production: data as Production,
+        productionSlug,
+        companySlug,
+      };
+    },
+    onSuccess: ({ production, productionSlug, companySlug }) => {
+      queryClient.invalidateQueries({
+        queryKey: productionKeys.detail(productionSlug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: companyKeys.detail(companySlug),
+      });
+      toast.success(
+        production.is_published
+          ? "Production published"
+          : "Production unpublished",
+        {
+          description: production.is_published
+            ? "This production is now visible to everyone."
+            : "This production is now hidden from the public.",
+        }
+      );
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update publish status", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+// ── Change production status ──────────────────────────────
+
+export function useChangeProductionStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      productionId,
+      productionSlug,
+      companySlug,
+      status,
+    }: {
+      productionId: string;
+      productionSlug: string;
+      companySlug: string;
+      status: ProductionStatus;
+    }) => {
+      const { data, error } = await supabase
+        .from("productions")
+        .update({ status })
+        .eq("id", productionId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return {
+        production: data as Production,
+        productionSlug,
+        companySlug,
+      };
+    },
+    onSuccess: ({ productionSlug, companySlug }) => {
+      queryClient.invalidateQueries({
+        queryKey: productionKeys.detail(productionSlug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: companyKeys.detail(companySlug),
+      });
+      toast.success("Production status updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update status", {
         description: error.message,
       });
     },

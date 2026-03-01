@@ -11,6 +11,9 @@ import {
   ClockIcon,
   GlobeIcon,
   EyeSlashIcon,
+  EyeIcon,
+  PencilSimpleIcon,
+  SpinnerIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProductionDetail } from "@/hooks/useProductionDetail";
+import { useTogglePublish } from "@/hooks/useProductions";
 import type { JobPost } from "@/types/models";
 
 // ── Config maps ───────────────────────────────────────────
@@ -53,6 +57,7 @@ const BUDGET_LABELS: Record<string, string> = {
 function ProductionDetail() {
   const { slug } = useParams<{ slug: string }>();
   const { data, isLoading, error } = useProductionDetail(slug);
+  const togglePublish = useTogglePublish();
 
   if (isLoading) return <ProductionSkeleton />;
 
@@ -75,6 +80,15 @@ function ProductionDetail() {
   const isAdmin = role === "owner" || role === "admin";
   const status = STATUS_CONFIG[production.status] ?? STATUS_CONFIG.pre_production;
 
+  function handleTogglePublish() {
+    togglePublish.mutate({
+      productionId: production.id,
+      productionSlug: production.slug,
+      companySlug: company.slug,
+      publish: !production.is_published,
+    });
+  }
+
   return (
     <>
       <Helmet>
@@ -84,12 +98,28 @@ function ProductionDetail() {
       <div className="space-y-8">
         {/* ── Draft banner ─────────────────────────────── */}
         {!production.is_published && isAdmin && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <EyeSlashIcon className="h-4 w-4 shrink-0" />
-            <p>
-              This production is a <strong>draft</strong> — only team members
-              can see it. Publish it from settings to make it public.
-            </p>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="flex items-center gap-2">
+              <EyeSlashIcon className="h-4 w-4 shrink-0" />
+              <p>
+                This production is a <strong>draft</strong> — only team members
+                can see it.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer"
+              onClick={handleTogglePublish}
+              disabled={togglePublish.isPending}
+            >
+              {togglePublish.isPending ? (
+                <SpinnerIcon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <EyeIcon className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Publish now
+            </Button>
           </div>
         )}
 
@@ -107,7 +137,7 @@ function ProductionDetail() {
 
             {/* Company link */}
             <Link
-              to={`/companies/${company.slug}`}
+              to={`/companies/${company.slug}/dashboard`}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <Avatar className="h-6 w-6 rounded">
@@ -129,6 +159,28 @@ function ProductionDetail() {
           {/* Admin actions */}
           {isAdmin && (
             <div className="flex shrink-0 gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/productions/${production.slug}/edit`}>
+                  <PencilSimpleIcon className="mr-1.5 h-4 w-4" />
+                  Edit
+                </Link>
+              </Button>
+              {production.is_published && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 cursor-pointer"
+                  onClick={handleTogglePublish}
+                  disabled={togglePublish.isPending}
+                >
+                  {togglePublish.isPending ? (
+                    <SpinnerIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <EyeSlashIcon className="h-4 w-4" />
+                  )}
+                  Unpublish
+                </Button>
+              )}
               <Button asChild size="sm">
                 <Link to={`/companies/${company.slug}/productions/new`}>
                   <PlusIcon className="mr-2 h-4 w-4" />

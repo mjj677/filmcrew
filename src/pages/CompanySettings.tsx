@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { EditCompanyForm } from "@/components/company/EditCompanyForm";
 import { TeamManagement } from "@/components/company/TeamManagement";
+import { InvitationManagement } from "@/components/company/InvitationManagement";
+import { DangerZone } from "@/components/company/DangerZone";
 
 function CompanySettings() {
   const { slug } = useParams<{ slug: string }>();
@@ -52,6 +54,7 @@ function CompanySettings() {
   }
 
   const { company, role, members } = data;
+  const isOwner = role === "owner";
 
   return (
     <>
@@ -73,8 +76,23 @@ function CompanySettings() {
 
         <Tabs defaultValue="details">
           <TabsList className="cursor-pointer">
-            <TabsTrigger value="details" className="cursor-pointer">Details</TabsTrigger>
-            <TabsTrigger value="team" className="cursor-pointer">Team</TabsTrigger>
+            <TabsTrigger value="details" className="cursor-pointer">
+              Details
+            </TabsTrigger>
+            <TabsTrigger value="team" className="cursor-pointer">
+              Team
+            </TabsTrigger>
+            <TabsTrigger value="invitations" className="cursor-pointer">
+              Invitations
+            </TabsTrigger>
+            {isOwner && (
+              <TabsTrigger
+                value="danger"
+                className="cursor-pointer text-destructive data-[state=active]:text-destructive"
+              >
+                Danger Zone
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="details" className="mt-6">
@@ -88,6 +106,23 @@ function CompanySettings() {
               currentUserRole={role!}
             />
           </TabsContent>
+
+          <TabsContent value="invitations" className="mt-6">
+            <InvitationManagement
+              company={company}
+              currentUserRole={role!}
+            />
+          </TabsContent>
+
+          {isOwner && (
+            <TabsContent value="danger" className="mt-6">
+              <DangerZone
+                company={company}
+                members={members}
+                currentUserRole={role!}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </>
