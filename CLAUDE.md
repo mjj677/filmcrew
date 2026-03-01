@@ -90,7 +90,7 @@ src/
 │   ├── useInvitations.ts             # useCompanyInvitations, useSendInvitation, useRevokeInvitation
 │   ├── useProductions.ts             # useCreateProduction, useUpdateProduction, useTogglePublish, useChangeProductionStatus, generateProductionSlug, checkProductionSlugAvailability
 │   ├── useProductionDetail.ts        # Fetches production + parent company + jobs + current user role
-│   └── useJobs.ts                    # useCreateJob, useJobDetail, useJobList, isJobEffectivelyClosed, jobKeys
+│   └── useJobs.ts                    # useCreateJob, useJobDetail (tested), useJobList (drafted, not tested/wired), isJobEffectivelyClosed, jobKeys
 ├── lib/
 │   ├── supabase.ts
 │   ├── constants.ts
@@ -433,7 +433,7 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Context switcher in UserMenu (lists user's companies with logos/roles, links to dashboards, create company shortcut)
 - [x] Job creation flow (form scoped to production, permission-gated, blocked on wrapped/cancelled, draft warning)
 - [x] Job detail page (production/company context, meta badges, apply section with deadline awareness, wrapped/cancelled banner)
-- [x] Job visibility logic (isJobEffectivelyClosed helper, browse list filters out jobs on unpublished/wrapped/cancelled productions)
+- [x] Job visibility logic (isJobEffectivelyClosed helper for job detail page, draft useJobList filters out jobs on unpublished/wrapped/cancelled productions — NOT yet tested or wired to UI)
 - [x] Server-side enforcement: no job inserts on wrapped/cancelled productions (enforce_job_limit trigger)
 - [x] Cross-entity cache invalidation (production status/publish changes invalidate job caches)
 - [x] Old PostJob page removed — job creation now flows through productions
@@ -449,7 +449,7 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [ ] **Hook needed:** `useJobApplications.ts` — `useApplyToJob`, `useMyApplications`, `useJobApplicants`, `useUpdateApplicationStatus`
 
 #### Jobs Browse Page (`/jobs`)
-- [ ] **Full browse/filter UI** — the `useJobList` hook and `fetchJobList` function are already built with support for `search`, `category`, `type`, `experience_level`, and `is_remote` filters. The Jobs page (`src/pages/Jobs.tsx`) is still a stub. Needs: search input, filter dropdowns, job cards grid/list, pagination, URL-synced filter state (like CrewDirectory).
+- [ ] **Full browse/filter UI** — a draft `useJobList` hook and `fetchJobList` function exist in `useJobs.ts` with support for `search`, `category`, `type`, `experience_level`, and `is_remote` filters, but they have NOT been tested or wired to any UI yet. They will likely need refinement — pagination is not handled, and the client-side filtering for production status/publish state may need to move server-side for efficiency at scale. The Jobs page (`src/pages/Jobs.tsx`) is still a stub. Needs: search input, filter dropdowns, job cards grid/list, pagination, URL-synced filter state (like CrewDirectory).
 - [ ] **Job cards component** — reusable card showing title, company logo/name, production name, location, type, compensation, deadline. Link to `/jobs/:id`.
 
 ### MEDIUM PRIORITY — Important but Not Blocking

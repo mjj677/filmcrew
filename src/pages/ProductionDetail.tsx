@@ -14,6 +14,7 @@ import {
   EyeIcon,
   PencilSimpleIcon,
   SpinnerIcon,
+  UsersIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProductionDetail } from "@/hooks/useProductionDetail";
 import { useTogglePublish } from "@/hooks/useProductions";
+import { useApplicantCounts } from "@/hooks/useJobApplications";
 import type { JobPost } from "@/types/models";
 
 // ── Config maps ───────────────────────────────────────────
@@ -59,6 +61,13 @@ function ProductionDetail() {
   const { data, isLoading, error } = useProductionDetail(slug);
   const togglePublish = useTogglePublish();
 
+  // Fetch applicant counts for all jobs (only when data is loaded and user is admin)
+  const isAdmin = data?.role === "owner" || data?.role === "admin";
+  const jobIds = (data?.jobs ?? []).map((j) => j.id);
+  const { data: applicantCounts } = useApplicantCounts(
+    isAdmin ? jobIds : [],
+  );
+
   if (isLoading) return <ProductionSkeleton />;
 
   if (error || !data) {
@@ -76,8 +85,7 @@ function ProductionDetail() {
     );
   }
 
-  const { production, company, jobs, role } = data;
-  const isAdmin = role === "owner" || role === "admin";
+  const { production, company, jobs } = data;
   const status = STATUS_CONFIG[production.status] ?? STATUS_CONFIG.pre_production;
   const isActive = !["wrapped", "cancelled"].includes(production.status);
 
@@ -267,7 +275,13 @@ function ProductionDetail() {
           ) : (
             <div className="space-y-3">
               {jobs.map((job) => (
-                <JobRow key={job.id} job={job} />
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  applicantCount={
+                    isAdmin ? applicantCounts?.[job.id] ?? 0 : undefined
+                  }
+                />
               ))}
             </div>
           )}
@@ -299,14 +313,29 @@ function MetaCard({
   );
 }
 
-function JobRow({ job }: { job: JobPost }) {
+function JobRow({
+  job,
+  applicantCount,
+}: {
+  job: JobPost;
+  /** undefined = don't show count (non-admin), 0+ = show count */
+  applicantCount?: number;
+}) {
   return (
     <Link
       to={`/jobs/${job.id}`}
       className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{job.title}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate font-medium">{job.title}</p>
+          {applicantCount !== undefined && applicantCount > 0 && (
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <UsersIcon className="h-3 w-3" />
+              {applicantCount}
+            </Badge>
+          )}
+        </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {job.location && (
             <span className="flex items-center gap-1">

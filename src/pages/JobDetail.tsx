@@ -4,7 +4,6 @@ import {
   BriefcaseIcon,
   MapPinIcon,
   GlobeIcon,
-  ClockIcon,
   CurrencyGbpIcon,
   UserIcon,
   FilmSlateIcon,
@@ -19,6 +18,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useJobDetail, isJobEffectivelyClosed } from "@/hooks/useJobs";
+import { useAuth } from "@/context/AuthContext";
+import { ApplySection } from "@/components/jobs/ApplySection";
+import { JobApplicationsPanel } from "@/components/jobs/JobApplicationsPanel";
 
 // ── Label maps ────────────────────────────────────────────
 
@@ -48,6 +50,7 @@ const STATUS_LABELS: Record<string, string> = {
 function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: job, isLoading, error } = useJobDetail(id);
+  const { user } = useAuth();
 
   if (isLoading) return <JobSkeleton />;
 
@@ -76,6 +79,11 @@ function JobDetail() {
   const productionStatusLabel = job.production?.status
     ? STATUS_LABELS[job.production.status] ?? job.production.status
     : "";
+
+  const isOwnJob = !!user && job.posted_by === user.id;
+  const isCompanyAdmin =
+    job.companyRole === "owner" || job.companyRole === "admin";
+  const canManageApplicants = isOwnJob || isCompanyAdmin;
 
   return (
     <>
@@ -154,6 +162,10 @@ function JobDetail() {
               ) : isPastDeadline ? (
                 <Badge variant="secondary" className="bg-amber-100 text-amber-800">
                   Deadline passed
+                </Badge>
+              ) : canManageApplicants ? (
+                <Badge variant="secondary">
+                  {isOwnJob ? "Your listing" : "Team listing"}
                 </Badge>
               ) : (
                 <Button size="lg" asChild>
@@ -266,43 +278,25 @@ function JobDetail() {
         <Separator />
 
         {/* ── Apply section ─────────────────────────────── */}
-        <section id="apply" className="space-y-4 scroll-mt-20">
-          {effectivelyClosed ? (
-            <div className="rounded-lg border border-dashed px-4 py-8 text-center">
-              <BriefcaseIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-              <p className="mt-2 font-medium">This position is closed</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {productionInactive
-                  ? `The production has ${productionStatusLabel}. Applications are no longer being accepted.`
-                  : "Applications are no longer being accepted."}
-              </p>
-            </div>
-          ) : isPastDeadline ? (
-            <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-8 text-center">
-              <ClockIcon className="mx-auto h-8 w-8 text-amber-500" />
-              <p className="mt-2 font-medium text-amber-800">
-                Application deadline has passed
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The deadline was{" "}
-                {new Date(job.deadline!).toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-                .
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-lg font-semibold">Apply for this role</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Application flow coming soon — for now, reach out via messaging.
-              </p>
-              {/* TODO: replace with full application form (cover message + submit) */}
-            </div>
-          )}
+        <section id="apply" className="scroll-mt-20">
+          <ApplySection
+            jobId={job.id}
+            effectivelyClosed={effectivelyClosed}
+            isPastDeadline={isPastDeadline}
+            deadline={job.deadline}
+            productionInactive={productionInactive}
+            productionStatusLabel={productionStatusLabel}
+            canManage={canManageApplicants}
+          />
         </section>
+
+        {/* ── Applicants panel (poster + company admins) ── */}
+        {canManageApplicants && (
+          <>
+            <Separator />
+            <JobApplicationsPanel jobId={job.id} />
+          </>
+        )}
 
         {/* ── Footer meta ───────────────────────────────── */}
         <p className="text-xs text-muted-foreground">

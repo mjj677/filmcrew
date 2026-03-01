@@ -17,6 +17,7 @@ import {
   UserIcon,
   PlusIcon,
   SignOutIcon,
+  BriefcaseIcon,
 } from "@phosphor-icons/react";
 
 export function UserMenu() {
@@ -71,6 +72,13 @@ export function UserMenu() {
           <Link to="/profile">
             <UserIcon className="mr-2 h-4 w-4" />
             Profile
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link to="/applications">
+            <BriefcaseIcon className="mr-2 h-4 w-4" />
+            My applications
           </Link>
         </DropdownMenuItem>
 

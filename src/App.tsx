@@ -11,6 +11,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import Inbox from "@/pages/Inbox";
 import Profile from "@/pages/Profile";
 import Connections from "@/pages/Connections";
+import MyApplications from "@/pages/MyApplications";
 import CreateCompany from "@/pages/CreateCompany";
 import CompanyDashboard from "@/pages/CompanyDashboard";
 import CreateProduction from "@/pages/CreateProduction";
@@ -37,6 +38,7 @@ function App() {
         <Route path="/inbox/:conversationId" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
+        <Route path="/applications" element={<ProtectedRoute><MyApplications /></ProtectedRoute>} />
         <Route path="/companies/new" element={<ProtectedRoute><CreateCompany /></ProtectedRoute>} />
         <Route path="/companies/:slug/dashboard" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
         <Route path="/companies/:slug/productions/new" element={<ProtectedRoute><CreateProduction /></ProtectedRoute>} />
