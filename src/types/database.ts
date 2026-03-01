@@ -14,6 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          company_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "production_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_invitations: {
+        Row: {
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          invited_by: string
+          invited_email: string | null
+          invited_user_id: string | null
+          responded_at: string | null
+          role: Database["public"]["Enums"]["company_role"]
+          status: Database["public"]["Enums"]["invitation_status"]
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          invited_email?: string | null
+          invited_user_id?: string | null
+          responded_at?: string | null
+          role?: Database["public"]["Enums"]["company_role"]
+          status?: Database["public"]["Enums"]["invitation_status"]
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          invited_email?: string | null
+          invited_user_id?: string | null
+          responded_at?: string | null
+          role?: Database["public"]["Enums"]["company_role"]
+          status?: Database["public"]["Enums"]["invitation_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "production_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_invitations_invited_user_id_fkey"
+            columns: ["invited_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connections: {
         Row: {
           created_at: string
@@ -155,11 +264,14 @@ export type Database = {
           deadline: string | null
           description: string
           experience_level: string | null
+          flagged_reason: string | null
           id: string
           is_active: boolean | null
+          is_flagged: boolean
           is_remote: boolean | null
           location: string | null
           posted_by: string
+          production_id: string | null
           project_type: string | null
           title: string
           type: string | null
@@ -173,11 +285,14 @@ export type Database = {
           deadline?: string | null
           description: string
           experience_level?: string | null
+          flagged_reason?: string | null
           id?: string
           is_active?: boolean | null
+          is_flagged?: boolean
           is_remote?: boolean | null
           location?: string | null
           posted_by: string
+          production_id?: string | null
           project_type?: string | null
           title: string
           type?: string | null
@@ -191,11 +306,14 @@ export type Database = {
           deadline?: string | null
           description?: string
           experience_level?: string | null
+          flagged_reason?: string | null
           id?: string
           is_active?: boolean | null
+          is_flagged?: boolean
           is_remote?: boolean | null
           location?: string | null
           posted_by?: string
+          production_id?: string | null
           project_type?: string | null
           title?: string
           type?: string | null
@@ -207,6 +325,13 @@ export type Database = {
             columns: ["posted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_posts_production_id_fkey"
+            columns: ["production_id"]
+            isOneToOne: false
+            referencedRelation: "productions"
             referencedColumns: ["id"]
           },
         ]
@@ -247,6 +372,213 @@ export type Database = {
           {
             foreignKeyName: "messages_sender_id_fkey"
             columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_companies: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_verified: boolean
+          logo_url: string | null
+          max_active_jobs_per_production: number
+          max_active_productions: number
+          name: string
+          owner_id: string
+          slug: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier: Database["public"]["Enums"]["company_tier"]
+          tier_cancel_at: string | null
+          tier_expires_at: string | null
+          tier_started_at: string | null
+          tier_status: Database["public"]["Enums"]["tier_status"]
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_verified?: boolean
+          logo_url?: string | null
+          max_active_jobs_per_production?: number
+          max_active_productions?: number
+          name: string
+          owner_id: string
+          slug: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["company_tier"]
+          tier_cancel_at?: string | null
+          tier_expires_at?: string | null
+          tier_started_at?: string | null
+          tier_status?: Database["public"]["Enums"]["tier_status"]
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_verified?: boolean
+          logo_url?: string | null
+          max_active_jobs_per_production?: number
+          max_active_productions?: number
+          name?: string
+          owner_id?: string
+          slug?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["company_tier"]
+          tier_cancel_at?: string | null
+          tier_expires_at?: string | null
+          tier_started_at?: string | null
+          tier_status?: Database["public"]["Enums"]["tier_status"]
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_companies_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          permissions: Json | null
+          role: Database["public"]["Enums"]["company_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          permissions?: Json | null
+          role?: Database["public"]["Enums"]["company_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          permissions?: Json | null
+          role?: Database["public"]["Enums"]["company_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "production_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_company_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productions: {
+        Row: {
+          budget_range: Database["public"]["Enums"]["budget_range"] | null
+          company_id: string
+          country: string | null
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          is_published: boolean
+          location: string | null
+          poster_url: string | null
+          production_type: Database["public"]["Enums"]["production_type"] | null
+          slug: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["production_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          budget_range?: Database["public"]["Enums"]["budget_range"] | null
+          company_id: string
+          country?: string | null
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_published?: boolean
+          location?: string | null
+          poster_url?: string | null
+          production_type?:
+            | Database["public"]["Enums"]["production_type"]
+            | null
+          slug: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["production_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          budget_range?: Database["public"]["Enums"]["budget_range"] | null
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_published?: boolean
+          location?: string | null
+          poster_url?: string | null
+          production_type?:
+            | Database["public"]["Enums"]["production_type"]
+            | null
+          slug?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["production_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "production_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productions_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -322,20 +654,98 @@ export type Database = {
         }
         Relationships: []
       }
+      reserved_slugs: {
+        Row: {
+          slug: string
+        }
+        Insert: {
+          slug: string
+        }
+        Update: {
+          slug?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_company_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: string
+      }
+      count_active_jobs: { Args: { p_production_id: string }; Returns: number }
+      count_active_productions: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
+      decline_company_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: undefined
+      }
       find_or_create_conversation: {
         Args: { target_user_id: string }
         Returns: string
       }
+      get_company_role: {
+        Args: { p_company_id: string; p_user_id?: string }
+        Returns: Database["public"]["Enums"]["company_role"]
+      }
       get_unread_count: { Args: never; Returns: number }
+      is_company_admin: {
+        Args: { p_company_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      is_company_member: {
+        Args: { p_company_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      is_company_owner: {
+        Args: { p_company_id: string; p_user_id?: string }
+        Returns: boolean
+      }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
+      is_production_admin: {
+        Args: { p_production_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      is_production_member: {
+        Args: { p_production_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      transfer_company_ownership: {
+        Args: { p_company_id: string; p_new_owner_id: string }
+        Returns: undefined
+      }
+      validate_slug: { Args: { input_slug: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      budget_range: "micro" | "low" | "mid" | "high"
+      company_role: "owner" | "admin" | "member"
+      company_tier: "free" | "pro" | "enterprise"
+      invitation_status:
+        | "pending"
+        | "accepted"
+        | "declined"
+        | "revoked"
+        | "expired"
+      production_status:
+        | "pre_production"
+        | "in_production"
+        | "post_production"
+        | "wrapped"
+        | "cancelled"
+      production_type:
+        | "feature_film"
+        | "short_film"
+        | "commercial"
+        | "music_video"
+        | "series"
+        | "documentary"
+        | "corporate"
+        | "other"
+      tier_status: "active" | "past_due" | "cancelled" | "suspended"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -462,6 +872,35 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      budget_range: ["micro", "low", "mid", "high"],
+      company_role: ["owner", "admin", "member"],
+      company_tier: ["free", "pro", "enterprise"],
+      invitation_status: [
+        "pending",
+        "accepted",
+        "declined",
+        "revoked",
+        "expired",
+      ],
+      production_status: [
+        "pre_production",
+        "in_production",
+        "post_production",
+        "wrapped",
+        "cancelled",
+      ],
+      production_type: [
+        "feature_film",
+        "short_film",
+        "commercial",
+        "music_video",
+        "series",
+        "documentary",
+        "corporate",
+        "other",
+      ],
+      tier_status: ["active", "past_due", "cancelled", "suspended"],
+    },
   },
 } as const

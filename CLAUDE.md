@@ -2,16 +2,16 @@
 
 ## What is FilmCrew?
 
-FilmCrew is a LinkedIn-style web platform for film industry professionals. Users create profiles, connect with each other, message internally (no personal contact info exposed), browse a crew directory, and post/apply for jobs. There are free and premium tiers (Stripe integration planned).
+FilmCrew is a LinkedIn-style web platform for film industry professionals. Users create profiles, connect with each other, message internally (no personal contact info exposed), browse a crew directory, and post/apply for jobs. Jobs live under **Productions**, which belong to **Production Companies** — mirroring real-world film industry structure. There are free and premium tiers (Stripe integration planned).
 
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (profiles, crew directory, crew profiles, connections, conversations, messages)
+- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions)
 - **SEO:** react-helmet-async
-- **Backend:** Supabase (Postgres, Auth, RLS, Realtime, Edge Functions for future server-side tasks)
+- **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
 - **Package Manager:** pnpm
 - **Icons:** @phosphor-icons/react (NOT Lucide — we chose Phosphor via shadcn create)
@@ -24,79 +24,90 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 src/
 ├── components/
 │   ├── auth/
-│   │   ├── GoogleButton.tsx      # Google OAuth sign-in button
-│   │   ├── EmailForm.tsx         # Email OTP (magic link) form
-│   │   └── ProtectedRoute.tsx    # Redirects to /auth if not signed in
-│   ├── connections/
-│   │   ├── ConnectButton.tsx     # Connection action button (send/withdraw/accept/decline/remove)
-│   │   ├── ConnectionCard.tsx    # Connection list item with profile info + actions
-│   │   └── ConnectionsList.tsx   # Full connections list with tabs/filtering
-│   ├── crew/
-│   │   ├── CrewCard.tsx          # Profile card for directory grid (bio preview, skills, availability, connection indicator)
-│   │   ├── CrewFilters.tsx       # Search + position/availability/skill dropdowns (URL param synced)
-│   │   ├── CrewGrid.tsx          # Responsive card grid + empty state (fetches + passes connection statuses)
-│   │   ├── CrewSkeleton.tsx      # Skeleton loading grid
-│   │   ├── CrewPagination.tsx    # Previous/next pagination controls
-│   │   ├── CrewProfileHeader.tsx # Public profile hero (avatar, name, position, meta, connect + message buttons)
-│   │   ├── CrewProfileDetails.tsx# Public profile body (bio, links, skills, showreel)
-│   │   ├── CrewProfileSkeleton.tsx # Loading state for public profile
-│   │   └── CrewProfileNotFound.tsx # 404 state with link back to directory
-│   ├── inbox/
-│   │   ├── ConversationList.tsx  # Sidebar list of conversations with unread indicators
-│   │   ├── ChatView.tsx          # Message thread with header, messages, typing indicator, input
-│   │   └── ChatBubble.tsx        # Individual message bubble (sent/received styling)
+│   │   ├── GoogleButton.tsx
+│   │   ├── EmailForm.tsx
+│   │   └── ProtectedRoute.tsx
 │   ├── layout/
-│   │   ├── Navbar.tsx            # Sticky top nav, composes NavLinks + UserMenu
-│   │   ├── NavLinks.tsx          # Nav links with animated sliding underline + unread badge on Inbox
-│   │   ├── UserMenu.tsx          # Avatar dropdown (signed in) or sign-in button
-│   │   └── RootLayout.tsx        # Layout wrapper with Navbar + Outlet
+│   │   ├── Navbar.tsx
+│   │   ├── NavLinks.tsx
+│   │   ├── UserMenu.tsx          # Avatar dropdown with company context switcher
+│   │   └── RootLayout.tsx
 │   ├── ui/                       # shadcn components (don't manually edit)
 │   ├── profile/
 │   │   ├── BasicInfoSection.tsx
 │   │   ├── RoleExperienceSection.tsx
 │   │   ├── LocationSection.tsx
 │   │   ├── SkillsSection.tsx
-│   │   ├── LinksSection.tsx      # IMDb + website URL fields
 │   │   ├── ShowreelSection.tsx
 │   │   ├── ProfileImageUpload.tsx
-│   │   ├── ShowreelPlayer.tsx    # YouTube thumbnail → iframe player (reused on crew profile)
+│   │   ├── ShowreelPlayer.tsx
 │   │   ├── SkillsPicker.tsx
 │   │   ├── ClearableInput.tsx
 │   │   └── ProfileSkeleton.tsx
+│   ├── crew/
+│   │   ├── CrewFilters.tsx
+│   │   ├── CrewGrid.tsx
+│   │   ├── CrewCard.tsx
+│   │   ├── CrewSkeleton.tsx
+│   │   └── CrewPagination.tsx
+│   ├── connections/
+│   │   ├── ConnectionCard.tsx
+│   │   ├── ConnectionsSkeleton.tsx
+│   │   └── ConnectionsTabs.tsx
+│   ├── inbox/
+│   │   ├── ConversationList.tsx
+│   │   ├── ConversationItem.tsx
+│   │   ├── ChatView.tsx
+│   │   ├── ChatBubble.tsx
+│   │   ├── ChatInput.tsx
+│   │   └── InboxSkeleton.tsx
+│   └── company/
+│       ├── CreateCompanyForm.tsx  # Company creation form with slug auto-gen + availability check
+│       ├── CreateProductionForm.tsx # Production creation form with type/schedule/budget fields
+│       ├── EditCompanyForm.tsx    # Pre-filled edit form (slug read-only, dirty tracking)
+│       └── TeamManagement.tsx     # Member list with role changes, removal, leave, confirmation dialogs
 ├── context/
-│   └── AuthContext.tsx            # Auth state provider (session, profile, sign in/out)
+│   └── AuthContext.tsx
 ├── hooks/
-│   ├── useProfile.ts             # TanStack Query: fetch/cache own profile + invalidate helper
-│   ├── useProfileForm.ts         # Profile form state/validation/save UX (toasts, scroll-to-error, dirty)
-│   ├── useCrewDirectory.ts       # TanStack Query: paginated/filtered crew list, URL param state
-│   ├── useCrewProfile.ts         # TanStack Query: fetch single profile by username
-│   ├── useConnection.ts          # Single connection lifecycle (send/withdraw/accept/decline/remove)
-│   ├── useConnections.ts         # List all connections for current user
-│   ├── useConnectionStatuses.ts  # Batch-fetch connection statuses for directory cards
-│   ├── useConversations.ts       # TanStack Query: conversation list with previews + Realtime updates
-│   ├── useMessages.ts            # TanStack Query: messages for a conversation + Realtime + mark-as-read + typing
-│   ├── useStartConversation.ts   # Find or create 1:1 conversation via RPC, navigate to inbox
-│   ├── useUnreadCount.ts         # Global unread message count via RPC + Realtime (powers navbar badge)
-│   ├── useScrollRestoration.ts   # Save/restore scroll position for directory ↔ profile navigation
-│   └── useNavigationGuard.ts     # beforeunload-only unsaved changes guard
+│   ├── useProfile.ts
+│   ├── useProfileForm.ts
+│   ├── useNavigationGuard.ts
+│   ├── useCrewDirectory.ts
+│   ├── useCrewProfile.ts
+│   ├── useConnection.ts
+│   ├── useConnections.ts
+│   ├── useConversations.ts
+│   ├── useMessages.ts
+│   ├── useStartConversation.ts
+│   ├── useUnreadCount.ts
+│   ├── useScrollRestoration.ts
+│   ├── useCompanies.ts           # useUserCompanies, useCreateCompany, useUpdateCompany, useUpdateMemberRole, useRemoveMember, generateSlug, checkSlugAvailability
+│   ├── useCompanyDetail.ts       # Fetches company + members (with profiles) + productions + current user role
+│   ├── useProductions.ts         # useCreateProduction, generateProductionSlug, checkProductionSlugAvailability
+│   └── useProductionDetail.ts    # Fetches production + parent company + jobs + current user role
 ├── lib/
-│   ├── supabase.ts               # Supabase client instance (typed with Database)
-│   ├── constants.ts              # positions, availability options, predefined skills list
-│   └── utils.ts                  # shadcn cn() utility
+│   ├── supabase.ts
+│   ├── constants.ts
+│   └── utils.ts
 ├── pages/
-│   ├── Auth.tsx                  # Sign-in page (Google + email OTP)
-│   ├── AuthCallback.tsx          # Loading screen only; auth redirect logic handled by AuthContext
-│   ├── Home.tsx                  # Landing page (stub)
-│   ├── CrewDirectory.tsx         # Browse crew — composes filters + grid + pagination
-│   ├── CrewProfile.tsx           # Public profile — composes header + details + back/edit nav
-│   ├── Connections.tsx           # Connections list — protected route
-│   ├── Jobs.tsx                  # Job listings (stub)
-│   ├── PostJob.tsx               # Create job posting (stub)
-│   ├── Inbox.tsx                 # Messages — conversation list + chat view, responsive layout
-│   └── Profile.tsx               # Edit profile — thin shell composing sections + hook + skeleton
+│   ├── Auth.tsx
+│   ├── AuthCallback.tsx
+│   ├── Home.tsx
+│   ├── CrewDirectory.tsx
+│   ├── CrewProfile.tsx
+│   ├── Jobs.tsx                  # Stub
+│   ├── PostJob.tsx               # Stub — will be refactored into production-scoped flow
+│   ├── Inbox.tsx
+│   ├── Profile.tsx
+│   ├── Connections.tsx
+│   ├── CreateCompany.tsx         # Thin shell → CreateCompanyForm
+│   ├── CompanyDashboard.tsx      # Stats, productions list, team grid, permission-gated actions
+│   ├── CompanySettings.tsx       # Tabbed layout: Details + Team (Invitations + Danger Zone TODO)
+│   ├── CreateProduction.tsx      # Tier limit check → CreateProductionForm
+│   └── ProductionDetail.tsx      # Public production page with meta cards, job listings, draft banner
 └── types/
-    ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types` — do not manually edit
-    └── models.ts                 # Convenience type exports (Profile, JobPost, etc.)
+    ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types`
+    └── models.ts                 # Convenience type exports including all new company/production types
 ```
 
 ## Key Architecture Decisions
@@ -117,26 +128,42 @@ src/
 
 ### Server State vs Client State
 - `useAuth()` = session/auth lifecycle only (no profile fetching).
-- `useProfile()` = TanStack Query hook for own profile data fetching/caching/invalidation.
-- `useCrewDirectory()` = TanStack Query hook for paginated crew list with URL param filters.
-- `useCrewProfile()` = TanStack Query hook for fetching a single profile by username.
-- `useConnection()` = TanStack Query hook for single connection lifecycle with a target user.
-- `useConnections()` = TanStack Query hook for listing all of the current user's connections.
-- `useConnectionStatuses()` = Batch-fetch connection statuses for a page of directory cards (single query).
-- `useConversations()` = TanStack Query hook for conversation list with message previews and unread counts.
-- `useMessages()` = TanStack Query hook for a single conversation's messages with Realtime subscription.
-- `useUnreadCount()` = Global unread count via RPC, powers the navbar badge.
-- Profile save is a TanStack `useMutation`, and on success it invalidates the own profile, crew profile, and crew directory caches.
+- `useProfile()` = TanStack Query hook for profile data fetching/caching/invalidation.
+- Profile save is a TanStack `useMutation`, and on success it invalidates the cached profile query.
 
-### Cache Invalidation Strategy
-- Profile save invalidates three query families:
-  - `["profiles", userId]` — own profile cache
-  - `["crew-profile"]` — all cached crew profile pages
-  - `["crew"]` — all cached directory pages
-- Messaging mark-as-read invalidates:
-  - `["conversations"]` — conversation list (unread counts)
-  - `["unread-count"]` — navbar badge
-- `useInvalidateProfile()` returns a promise so callers can `await` before navigating (prevents stale cache bugs).
+### Production Company → Production → Jobs Hierarchy
+- **Production Companies** are the top-level business entity. One owner, multiple members with role-based access (owner/admin/member).
+- **Productions** (films, commercials, etc.) belong to a company. Each production has a lifecycle status (pre_production → in_production → post_production → wrapped/cancelled).
+- **Job Posts** belong to a production (via `production_id`). Legacy `company` and `project_type` columns remain temporarily on `job_posts` for backward compatibility.
+- **Context Switching:** Users can switch between personal context and company context via the UserMenu dropdown (X/Instagram style). Auth session never changes — the UI adapts based on active context. Companies listed in dropdown link directly to their dashboards.
+- **Tier Enforcement:** Server-side triggers prevent exceeding production/job limits regardless of client behaviour. Free tier: 1 active production, 3 jobs per production. Client-side checks provide early UX feedback (e.g. showing upgrade prompt instead of form when at limit).
+
+### Company Membership & Invitations
+- `production_company_members` tracks who belongs to which company and their role.
+- A trigger auto-creates an `owner` membership when a company is created.
+- `company_invitations` supports inviting by user ID or email (for users who haven't signed up yet). A trigger on `profiles` INSERT auto-links pending email invitations when someone signs up.
+- Invitations expire after 14 days. Can be accepted, declined, or revoked.
+- Owners cannot leave a company — they must transfer ownership first.
+- **Team management UI built:** role changes via dropdown menu, member removal with confirmation dialog, permission-aware action visibility (owners see more than admins, admins see more than members, nobody can edit themselves).
+
+### Slug System
+- Companies and productions use slugs for URL-friendly identifiers.
+- `validate_slug()` function enforces: lowercase alphanumeric + hyphens, 2–60 chars, no leading/trailing hyphens, not in `reserved_slugs` table.
+- `generateSlug()` and `generateProductionSlug()` utility functions auto-generate slugs from names.
+- `checkSlugAvailability()` and `checkProductionSlugAvailability()` run server-side validation + uniqueness checks with 400ms debounce.
+- Slug fields auto-generate from name/title, with "Edit manually" option. Live status indicator (checking/available/taken/invalid).
+- Reserved slugs include route names (`admin`, `api`, `auth`, `companies`, `crew`, `jobs`, `profile`, etc.) to prevent collisions.
+- Slugs are currently immutable. Slug change support (with redirect history) is a future enhancement.
+
+### Audit Log
+- Append-only `audit_log` table records who did what and when for company-scoped actions.
+- Populated via Postgres triggers on `production_companies`, `productions`, `job_posts`, and `production_company_members`.
+- RLS: only company members can read their own audit log. No client-side writes.
+
+### Soft Deletes
+- `production_companies` and `productions` use `deleted_at` for soft deletes.
+- No DELETE RLS policy exists — hard deletes are impossible from the client.
+- All queries filter on `deleted_at IS NULL`.
 
 ### Layout & Routing
 - React Router layout route pattern: `<Route element={<RootLayout />}>` wraps all pages except `/auth` and `/auth/callback`
@@ -145,15 +172,13 @@ src/
 - Protected routes use `<ProtectedRoute>` wrapper that redirects to `/auth`
 - App currently uses **BrowserRouter**, not a "data router".
   - This means React Router's `useBlocker` is NOT available.
-  - Unsaved changes protection is **beforeunload only** (tab close/refresh). In-app navigation blocking would require migrating to `createBrowserRouter`.
+  - Unsaved changes protection is **beforeunload only** (tab close/refresh).
 
 ### Navbar
 - Single responsive component — no separate mobile layout
 - Icons only on mobile (`hidden md:inline` on labels), icons + labels on desktop
 - Animated sliding underline tracks active route via refs and getBoundingClientRect
-- Inbox link shows unread badge (count from `useUnreadCount`)
-- UserMenu returns null while `isLoading` or while `session && !profile` to prevent flicker, pulls profile via `useProfile()`.
-- Navbar hides right-side content with `invisible` class while auth loads
+- UserMenu returns null while `isLoading` or while `session && !profile` to prevent flicker
 
 ### Database Types
 - `src/types/database.ts` is auto-generated from Supabase: `pnpm gen-types`
@@ -162,179 +187,173 @@ src/
 
 ### Profile Editor UX
 - Profile page is split into small sections + one hook; page file stays thin.
-- Form state initialised with lazy `useState(() => buildInitialForm(profile))` to avoid stale data on mount.
 - Loading state uses shadcn `<Skeleton />` via `ProfileSkeleton`.
 - Toasts use `sonner` (Toaster mounted in `main.tsx`).
-- Save UX:
-  - Success toast on save.
-  - Error toast on validation/server errors.
-  - Scrolls + focuses first invalid field when validation fails.
-  - Navigates to `/crew/:username` after save (awaits cache invalidation first).
-- Clearable text inputs (X button) for display name, username, bio, city, country, showreel URL, IMDb, website.
+- Save UX: success toast, error toast, scroll + focus first invalid field on validation fail.
+- Clearable text inputs (X button) for text fields.
 - Bio has a 500-character limit + counter.
-- Skills:
-  - Search/select + removable chips.
-  - Supports predefined list + custom entries.
-  - Max 15 skills cap.
-- Links:
-  - IMDb URL validated against imdb.com domain.
-  - Website URL validated as valid http/https URL.
-- Select dropdowns:
-  - Use popper positioning to avoid scroll/jump bugs.
-  - Experience dropdown disables collision avoidance to keep it anchored below.
-
-### Crew Directory
-- Server-side filtering via Supabase PostgREST: `.ilike()` for text search, `.eq()` for exact matches, `.contains()` for skills array.
-- Filter state stored in URL search params — shareable/bookmarkable.
-- Search input debounced at 300ms to avoid excessive queries.
-- Only profiles with `has_completed_setup = true` appear.
-- Sorted by availability (available first) then most recently updated.
-- Pagination: 12 per page, `keepPreviousData` for smooth transitions.
-- Scroll restoration: position saved on card click, restored after data loads on back navigation.
-- Scroll to top (smooth) on page change.
-- Connection status indicators on cards (connected/pending) via batched `useConnectionStatuses` query.
-
-### Crew Profile (Public View)
-- Fetched by username via `useCrewProfile`.
-- Shows full bio, all skills (no truncation), showreel player, and links (IMDb + website).
-- Website URL displayed with cleaned hostname (strips protocol/www/trailing slash).
-- ConnectButton for connection lifecycle (send/withdraw/accept/decline/remove).
-- Message button to start/resume conversation (via `useStartConversation`).
-- "Edit profile" button shown when viewing own profile.
-- 404 state with link back to directory.
-
-### Connection System
-- Full lifecycle: send request → pending → accept/decline → connected → remove.
-- `useConnection(targetUserId)` manages single connection state and mutations.
-- `useConnections()` fetches all connections for the current user (for `/connections` page).
-- `useConnectionStatuses(userIds)` batch-fetches statuses for a page of directory cards — single query instead of N per card.
-- ConnectButton renders appropriate action based on connection state (context-aware labels + icons).
-- Directory cards show subtle connection indicator (connected/pending) with tooltip.
-
-### Messaging System
-- **Supabase Realtime** for live message delivery and typing indicators.
-- Realtime enabled on `messages`, `conversations`, and `conversation_participants` tables.
-- `find_or_create_conversation` RPC (security definer) finds existing 1:1 or creates new — avoids RLS circular dependency.
-- `get_unread_count` RPC (security definer) counts unread messages server-side — replaces broken PostgREST subquery.
-- `is_conversation_member` helper function (security definer) breaks circular RLS on `conversation_participants`.
-- `useStartConversation` — single RPC call to find/create conversation, navigates to `/inbox/:id`.
-- `useConversations` — fetches conversation list with other participant profiles, last message preview, unread counts. Realtime subscription for live updates. `refetchOnMount: "always"` to prevent stale inbox.
-- `useMessages` — fetches messages for active conversation. Realtime INSERT subscription for live messages. Mark-as-read on view (with `markedIdsRef` to prevent loops). Typing indicators via Supabase broadcast channels. `staleTime: 0` to always fetch fresh data.
-- `useUnreadCount` — global unread count via RPC, Realtime subscription on message changes, powers navbar badge. Exported `unreadKeys` for cross-hook invalidation.
-- Inbox page: responsive split layout (sidebar list + chat view). Mobile shows one or the other. Desktop shows both side-by-side.
-- ChatView: message bubbles, auto-scroll to bottom, typing indicator animation, textarea input with Enter to send.
+- Skills: search/select + removable chips, predefined list + custom entries, max 15.
+- Select dropdowns use popper positioning to avoid scroll/jump bugs.
 
 ### Icons
-- ALL icons come from `@phosphor-icons/react`, using the `Icon` suffix convention (e.g. `HouseIcon`, `UsersIcon`)
+- ALL icons come from `@phosphor-icons/react`, using the `Icon` suffix convention
 - Do NOT use Lucide icons
 
 ### Component Patterns
-- Use shadcn/ui components for all UI elements — don't create custom components for things shadcn already provides (e.g. use Separator, not a custom Divider)
+- Use shadcn/ui components for all UI elements
 - Keep page files thin — extract reusable pieces into `components/`
 - Every page gets a `<Helmet>` for SEO title
 
 ## Database Schema
 
-Seven tables with RLS enabled on all:
+### Enums (Postgres custom types)
+
+| Enum | Values |
+|------|--------|
+| `company_role` | `owner`, `admin`, `member` |
+| `company_tier` | `free`, `pro`, `enterprise` |
+| `tier_status` | `active`, `past_due`, `cancelled`, `suspended` |
+| `production_status` | `pre_production`, `in_production`, `post_production`, `wrapped`, `cancelled` |
+| `production_type` | `feature_film`, `short_film`, `commercial`, `music_video`, `series`, `documentary`, `corporate`, `other` |
+| `budget_range` | `micro`, `low`, `mid`, `high` |
+| `invitation_status` | `pending`, `accepted`, `declined`, `revoked`, `expired` |
 
 ### profiles
 - Extends auth.users (id is FK to auth.users)
 - username (unique), display_name, email, bio, position, location, country
-- profile_image_url, showreel_url (YouTube embed)
-- imdb_url, website_url
-- skills (text array — for filtering), experience_years
+- profile_image_url, showreel_url, imdb_url, website_url
+- skills (text array), experience_years
 - availability_status: 'available' | 'busy' | 'not_looking'
-- is_verified, is_premium (for future features)
-- has_completed_setup (boolean, default false)
+- is_verified, is_premium, has_completed_setup
 - Auto-created on signup via trigger
+
+### production_companies
+- name, slug (unique, validated), description, logo_url, website_url
+- city, country, owner_id (FK to profiles, ON DELETE RESTRICT)
+- **Tier state machine:** tier, tier_status, tier_started_at, tier_expires_at, tier_cancel_at
+- **Stripe fields:** stripe_customer_id, stripe_subscription_id
+- **Tier limits:** max_active_productions (default 1), max_active_jobs_per_production (default 3)
+- is_verified, deleted_at (soft delete)
+- Trigger auto-creates owner membership on INSERT
+
+### production_company_members
+- company_id (FK), user_id (FK), role (company_role enum)
+- permissions (jsonb, nullable — future per-member overrides)
+- Unique on (company_id, user_id)
+
+### company_invitations
+- company_id, invited_by, invited_user_id (nullable), invited_email (nullable)
+- role, status (invitation_status enum), expires_at (default 14 days)
+- EXCLUDE constraints prevent duplicate pending invites
+- CHECK constraint requires at least one of user_id or email
+- Trigger on profiles INSERT auto-links pending email invitations
+
+### productions
+- company_id (FK), title, slug (unique, validated), description
+- production_type (enum), status (enum, default pre_production)
+- start_date, end_date (with CHECK end >= start), location, country
+- budget_range (enum), is_published, poster_url, created_by (FK)
+- deleted_at (soft delete)
+- INSERT trigger enforces max_active_productions tier limit
 
 ### connections
 - requester_id, recipient_id (both FK to profiles)
 - status: 'pending' | 'accepted' | 'declined'
-- Unique constraint on (requester_id, recipient_id)
-- Check constraint prevents self-connections
+- Unique on (requester_id, recipient_id), check prevents self-connections
 
-### conversations
-- Just id and created_at
-- Participants tracked in junction table
-
-### conversation_participants
-- conversation_id (FK to conversations), user_id (FK to profiles)
-- Unique on (conversation_id, user_id)
-
-### messages
-- conversation_id, sender_id, body, read_at (null = unread)
-- RLS: only conversation participants can read/send/update
+### conversations / conversation_participants / messages
+- Standard messaging schema with RLS scoped to participants
+- `find_or_create_conversation` RPC for starting conversations
+- `is_conversation_member` helper function (security definer)
+- Real-time via Supabase Postgres Changes
 
 ### job_posts
-- posted_by (FK to profiles), title, company, description
-- location, is_remote, type, category, experience_level, project_type
-- compensation, deadline, is_active
-- Public read when is_active = true, only poster can edit/delete
+- posted_by (FK to profiles), title, description, location, is_remote, type, category
+- experience_level, compensation, deadline, is_active
+- **production_id** (FK to productions, nullable for backward compat)
+- **is_flagged**, **flagged_reason** (moderation)
+- INSERT trigger enforces max_active_jobs_per_production tier limit
+- Legacy columns `company` and `project_type` remain until all jobs flow through productions
 
 ### job_applications
 - job_id, applicant_id, cover_message, status
-- Unique on (job_id, applicant_id) — one application per job per user
-- Visible to both applicant and job poster
+- Unique on (job_id, applicant_id)
 
-## Database Functions (RPCs)
+### audit_log
+- company_id, actor_id, action, target_type, target_id, metadata (jsonb)
+- Append-only (no UPDATE/DELETE policies)
+- Populated by triggers on companies, productions, job_posts, members
 
-### find_or_create_conversation(target_user_id uuid) → uuid
-- Security definer, bypasses RLS
-- Finds existing 1:1 conversation between caller and target, or creates one
-- Prevents self-conversations
-- Used by `useStartConversation` hook
+### reserved_slugs
+- slug (text PK) — prevents users from claiming route-conflicting slugs
 
-### get_unread_count() → integer
-- Security definer, bypasses RLS
-- Counts messages where caller is a participant but not sender, and read_at is null
-- Used by `useUnreadCount` hook
+## Helper Functions (Security Definer)
 
-### is_conversation_member(conv_id uuid) → boolean
-- Security definer helper function
-- Checks if auth.uid() is a participant in the given conversation
-- Used by RLS policies on `conversation_participants` and `messages` to break circular self-referencing
+These bypass RLS and are used inside RLS policies to prevent circular dependencies:
+
+| Function | Purpose |
+|----------|---------|
+| `is_company_member(company_id, user_id?)` | Check membership |
+| `is_company_admin(company_id, user_id?)` | Check admin+ role |
+| `is_company_owner(company_id, user_id?)` | Check owner role |
+| `get_company_role(company_id, user_id?)` | Get role or NULL |
+| `is_production_member(production_id, user_id?)` | Check via production → company → members |
+| `is_production_admin(production_id, user_id?)` | Check admin+ via production chain |
+| `count_active_productions(company_id)` | For tier limit enforcement |
+| `count_active_jobs(production_id)` | For tier limit enforcement |
+| `validate_slug(slug)` | Regex + reserved words check |
+| `is_conversation_member(conv_id)` | Messaging RLS helper |
+| `find_or_create_conversation(target_user_id)` | Atomic conversation creation |
+| `get_unread_count()` | Unread message badge |
+
+## RPCs
+
+| RPC | Purpose |
+|-----|---------|
+| `accept_company_invitation(invitation_id)` | Atomic: mark accepted + create membership |
+| `decline_company_invitation(invitation_id)` | Mark invitation as declined |
+| `transfer_company_ownership(company_id, new_owner_id)` | Demote current owner → admin, promote new owner |
 
 ## RLS Policy Summary
 
 - **Profiles:** Public read, owner insert/update/delete
+- **Production companies:** Public read (non-deleted), authenticated create (owner_id = self), admin+ update, no hard delete
+- **Company members:** Co-members can view, admin+ can add/update/remove, members can leave (owners cannot)
+- **Company invitations:** Admins see all for company, invitees see own, admins create, invitee or admin can update
+- **Productions:** Public read (published + non-deleted) OR member read (drafts), admin+ create/update, no hard delete
 - **Connections:** Participants can read, requester can create, recipient can accept/decline, either can delete
 - **Conversations:** Participants can read, any authenticated user can create
-- **Conversation participants:** Participants can view co-participants (via `is_conversation_member` helper), authenticated users can add
-- **Messages:** Participants can read/send/update via `is_conversation_member` helper (breaks circular RLS dependency)
-- **Job posts:** Public read (active only), poster can create/update/delete
+- **Conversation participants:** Participants can view co-participants, authenticated users can add
+- **Messages:** Participants can read/send/update (mark read)
+- **Job posts:** Public read (active only), poster can create/update/delete (+ tier limit trigger)
 - **Job applications:** Applicant can read own, poster can read for their jobs, applicant can create, poster can update status
-
-## Supabase Realtime
-
-Realtime publication enabled on:
-- `messages` — live message delivery in chat
-- `conversations` — conversation list updates
-- `conversation_participants` — participant changes
-
-Used for:
-- Live message delivery (Postgres Changes INSERT on messages)
-- Typing indicators (Broadcast channels per conversation)
-- Inbox list refresh (Postgres Changes on messages)
-- Unread badge refresh (Postgres Changes on messages)
+- **Audit log:** Company members can read, no client writes (triggers only)
+- **Reserved slugs:** Public read, no client writes (migrations only)
 
 ## Routes
 
-| Path | Auth | Component |
-|------|------|-----------|
-| `/` | No | Redirects to `/home` |
-| `/home` | No | Home |
-| `/crew` | No | CrewDirectory |
-| `/crew/:username` | No | CrewProfile |
-| `/connections` | **Yes** | Connections |
-| `/jobs` | No | Jobs |
-| `/jobs/post` | No | PostJob |
-| `/jobs/:id` | No | Job detail (stub) |
-| `/auth` | No | Auth (sign in) |
-| `/auth/callback` | No | AuthCallback |
-| `/inbox` | **Yes** | Inbox |
-| `/inbox/:conversationId` | **Yes** | Inbox (with active chat) |
-| `/profile` | **Yes** | Profile |
+| Path | Auth | Component | Status |
+|------|------|-----------|--------|
+| `/` | No | Redirects to `/home` | ✅ |
+| `/home` | No | Home | ✅ |
+| `/crew` | No | CrewDirectory | ✅ |
+| `/crew/:username` | No | CrewProfile | ✅ |
+| `/jobs` | No | Jobs | Stub |
+| `/jobs/post` | **Yes** | PostJob | Stub |
+| `/jobs/:id` | No | Job detail | Stub |
+| `/auth` | No | Auth (sign in) | ✅ |
+| `/auth/callback` | No | AuthCallback | ✅ |
+| `/inbox` | **Yes** | Inbox | ✅ |
+| `/inbox/:conversationId` | **Yes** | Inbox (with active chat) | ✅ |
+| `/profile` | **Yes** | Profile | ✅ |
+| `/connections` | **Yes** | Connections | ✅ |
+| `/companies/new` | **Yes** | CreateCompany | ✅ |
+| `/companies/:slug/dashboard` | **Yes** | CompanyDashboard | ✅ |
+| `/companies/:slug/settings` | **Yes** | CompanySettings | ✅ (Details + Team tabs) |
+| `/companies/:slug/productions/new` | **Yes** | CreateProduction | ✅ |
+| `/productions/:slug` | No | ProductionDetail | ✅ |
+| `/companies` | No | Browse companies | Not built |
+| `/companies/:slug` | No | Company public profile | Not built |
 
 ## Environment Variables
 
@@ -354,61 +373,75 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 
 ## What's Been Built
 
-- [x] Supabase project + database schema (7 tables, RLS, indexes, triggers)
+- [x] Supabase project + database schema (all tables, RLS, indexes, triggers)
 - [x] Vite + React + TypeScript + shadcn/ui project scaffold
 - [x] Supabase client with typed Database
 - [x] Auth system (Google OAuth + email OTP)
 - [x] Auto-profile creation on signup (Postgres trigger)
-- [x] AuthContext with session persistence across refresh + safe sign-in side-effects (no async in onAuthStateChange)
-- [x] TanStack Query wired for profiles (useProfile, useCrewDirectory, useCrewProfile)
-- [x] Responsive navbar with sliding underline indicator + unread badge
-- [x] UserMenu with avatar dropdown
+- [x] AuthContext with session persistence + safe sign-in side-effects
+- [x] TanStack Query wired for Profile (useProfile hook + mutations + invalidation)
+- [x] Responsive navbar with sliding underline indicator
+- [x] UserMenu with avatar dropdown + company context switcher
 - [x] Protected routes (inbox, profile, connections)
-- [x] Profile Editor (sections + image upload + showreel preview + skills picker + links)
+- [x] Profile Editor (sections + image upload + showreel preview + skills picker)
 - [x] Profile setup wizard redirect via `has_completed_setup`
 - [x] Layout route pattern with RootLayout
 - [x] Auto-generated database types from Supabase CLI
 - [x] Profile skeleton loading state + Sonner toasts
 - [x] Cloudflare Pages deployment
-- [x] Crew Directory (search, filter by position/availability/skill, pagination, sorted by availability)
-- [x] Crew Profile public view (header, bio, skills, links, showreel, 404 state)
-- [x] Bio preview on directory cards
-- [x] IMDb + website URL on profiles (schema, editor, public view)
-- [x] Scroll restoration for directory ↔ profile navigation
-- [x] Cross-cache invalidation on profile save (own profile + crew profile + directory)
-- [x] Dev seed data (24 fake profiles via SQL, removable)
-- [x] Connection system (send/withdraw/accept/decline/remove, full lifecycle)
-- [x] Connection status indicators on directory cards (batched query)
-- [x] Connections list page (/connections)
-- [x] Messaging system with Supabase Realtime
-- [x] find_or_create_conversation RPC (bypasses RLS circular dependency)
-- [x] get_unread_count RPC (server-side unread count)
-- [x] is_conversation_member helper (breaks circular RLS on conversation_participants)
-- [x] Inbox page with conversation list + chat view (responsive split layout)
-- [x] Real-time message delivery + typing indicators
-- [x] Mark-as-read on conversation view + unread badge in navbar
-- [x] Realtime enabled on messages, conversations, conversation_participants
+- [x] Crew Directory (search, filters, pagination, URL state)
+- [x] Crew Profile pages (public view via /crew/:username)
+- [x] Connection system (send/accept/decline/withdraw, mutual connections)
+- [x] Messaging system (real-time via Supabase, typing indicators, unread counts)
+- [x] Production company schema (companies, members, invitations, productions, audit log, tier enforcement, slug validation, helper functions, RLS policies)
+- [x] Company creation flow (form with slug auto-gen, availability check, auto-owner membership)
+- [x] Company dashboard (stats cards, productions list, team grid, permission-gated actions)
+- [x] Company settings — Details tab (edit name/description/location/website, slug read-only, dirty tracking)
+- [x] Company settings — Team tab (member list, role changes via dropdown, removal with confirmation dialog, leave company, permission-aware action visibility)
+- [x] Production creation flow (form with type/schedule/location/budget, tier limit check before showing form)
+- [x] Production detail page (public page with meta cards, job listings, draft banner for unpublished, company link)
+- [x] Context switcher in UserMenu (lists user's companies with logos/roles, links to dashboards, create company shortcut)
 
-## What Needs to Be Built
+## What Needs to Be Built Next
 
-### Core Features (MVP)
+### Company Settings — Remaining Tabs (Priority)
+- [ ] **Invitation flow:** Invite by username or email, view pending invitations list with status/expiry, revoke pending invites. RPCs exist (`accept_company_invitation`, `decline_company_invitation`) but no UI yet.
+- [ ] **Danger zone:** Transfer ownership (RPC `transfer_company_ownership` exists but no UI), soft-delete company with confirmation.
+
+### Company Feature — Remaining Pages
+- [ ] Public company profile page (`/companies/:slug`) — public-facing page for non-members to see company info, published productions, open jobs
+- [ ] Browse companies page (`/companies`) — searchable directory of production companies
+
+### Job System (Refactored Under Productions)
+- [ ] **Job creation form** scoped to a production (`/productions/:slug/jobs/new` or similar) — replaces the old `PostJob` stub
+- [ ] **Job detail page** (`/jobs/:id`) — full job listing with apply button
+- [ ] **Job application flow** — apply with cover message, status tracking
+- [ ] **Job listings page** (`/jobs`) — browse/filter across all productions with company/production context shown
+- [ ] Remove legacy `company` and `project_type` columns from `job_posts` once all jobs flow through productions
+
+### Production Enhancements
+- [ ] **Edit production** — update details, change status (publish/wrap/cancel)
+- [ ] **Production publish flow** — toggle `is_published` from settings or dashboard
+
+### Tier & Billing
+- [ ] Tier limit UX (upgrade prompts when limits reached — client-side check exists on CreateProduction, needs to be added elsewhere)
+- [ ] Stripe checkout for company tier upgrades
+- [ ] Webhook handler to update tier/tier_status columns
+- [ ] Subscription management (cancel, resume, change plan)
+- [ ] Swish support (enabled as Stripe payment method in Sweden)
+
+### Other Core Features
 - [ ] Email notifications for new messages (Supabase Edge Function)
-- [ ] Job listings page (browse active jobs, filter by type/category/experience)
-- [ ] Job detail page (/jobs/:id)
-- [ ] Post job page (create job form)
-- [ ] Job application flow (apply with cover message)
 
-### Future Features (post-MVP)
-- [ ] Stripe integration for premium tier
+### Future Features
 - [ ] Verification badges
-- [ ] Forum / wall posts page with comments
+- [ ] Forum / wall posts with comments
 - [ ] AI suggestion algorithm for forum content
 - [ ] Profile availability calendar
 - [ ] Gear rental page
-- [ ] Favorite genre on profile
 - [ ] Talent agents
 - [ ] Locations page
-- [ ] Invoice generator (after booking)
+- [ ] Invoice generator
 - [ ] Domain emails
 - [ ] CDN for images
 - [ ] Caching layer
@@ -417,20 +450,18 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 
 ## Important Gotchas
 
-1. **Supabase auth deadlock:** Never `await` a Supabase query inside `onAuthStateChange`. Use a separate `useEffect` that reacts to user changes.
-2. **Trigger search path:** Any Postgres trigger function called by Supabase auth must use `security definer` and `set search_path = public`, otherwise it can't find your tables.
-3. **Generated types:** `database.ts` is auto-generated. Never edit it manually. Add convenience types to `models.ts` instead.
-4. **Icons:** Use `@phosphor-icons/react` everywhere. Import with `Icon` suffix: `HouseIcon`, `UsersIcon`, etc.
-5. **shadcn components:** Use shadcn's built-in components before creating custom ones. Install new ones with `npx shadcn@latest add <component> -y`.
-6. **Environment variables:** Only `VITE_` prefixed vars are available in the browser. `SUPABASE_ACCESS_TOKEN` is CLI-only.
-7. **NavLinks indicator:** Uses `pathname ===` for exact matching (not `startsWith`) to prevent false matches on nested routes.
-8. **Profile form initialisation:** Use lazy `useState(() => buildInitialForm(profile))` — not `useState(buildInitialForm(null))` — to avoid stale empty form when TanStack Query cache has data.
-9. **Cache invalidation on save:** Always `await` invalidation before navigating. Invalidate all related query families (own profile, crew profile, crew directory) to prevent stale data across views.
-10. **Select "all" sentinel:** shadcn Select doesn't support empty string values. Use a sentinel value like `"__all__"` and map it back to `""` in the filter handler.
-11. **UUID LIKE queries:** Postgres UUIDs need `::text` cast for LIKE operations (e.g. `WHERE id::text LIKE '...'`).
-12. **React 19 useRef:** Requires explicit initial value — use `useRef<T>(undefined)` not `useRef<T>()`.
-13. **RLS circular dependencies:** Self-referencing RLS policies (where a table's policy queries itself) cause PostgREST 500 errors. Fix by extracting the check into a `security definer` helper function (e.g. `is_conversation_member`).
-14. **Supabase Realtime requires publication:** Tables must be added to the `supabase_realtime` publication for Realtime subscriptions to work: `alter publication supabase_realtime add table <table_name>;`
-15. **PostgREST subquery limitations:** Supabase's JS client `.in()` with a nested `.from().select()` doesn't work as a real SQL subquery. Use an RPC instead for queries that need subselects.
-16. **Mark-as-read loop prevention:** When marking messages as read via a `useEffect` that depends on `query.data`, track already-marked IDs in a ref to prevent infinite re-fires. Use `staleTime: 0` and clear the ref on unmount.
-17. **Supabase update 204 ≠ success:** A 204 response from `.update()` means the query executed but may have matched zero rows (RLS filtered them out). Always verify the actual database state when debugging.
+1. **Supabase auth deadlock:** Never `await` a Supabase query inside `onAuthStateChange`. Use a separate `useEffect`.
+2. **Trigger search path:** Any Postgres trigger function called by Supabase auth must use `security definer` and `set search_path = public`.
+3. **RLS circular dependencies:** Use `security definer` helper functions (like `is_company_member()`) to break circular references in RLS policies. This was critical for both messaging and the production company system.
+4. **Generated types:** `database.ts` is auto-generated. Never edit manually. Add convenience types to `models.ts`.
+5. **Icons:** Use `@phosphor-icons/react` everywhere. Import with `Icon` suffix.
+6. **shadcn components:** Use shadcn's built-in components before creating custom ones. Install with `npx shadcn@latest add <component> -y`.
+7. **Environment variables:** Only `VITE_` prefixed vars are available in the browser.
+8. **NavLinks indicator:** Uses `pathname ===` for exact matching.
+9. **Soft deletes:** `production_companies` and `productions` use `deleted_at`. Always filter on `deleted_at IS NULL` in queries. No DELETE RLS policies exist.
+10. **Slug validation:** Slugs must pass `validate_slug()` — lowercase alphanumeric + hyphens, 2–60 chars, not reserved. Always validate client-side before submission for UX, but server enforces via CHECK constraint.
+11. **Tier limits:** Enforced server-side via triggers on INSERT. Client should check limits before attempting to create (for good UX), but the database is the source of truth. CreateProduction page already shows upgrade prompt when at limit.
+12. **Owner safety:** Company owners cannot leave or be removed. Ownership must be explicitly transferred via `transfer_company_ownership()` RPC. TeamManagement component enforces this in the UI.
+13. **Legacy job_posts columns:** `company` and `project_type` still exist on `job_posts` for backward compatibility. Will be removed in a follow-up migration once all jobs flow through productions.
+14. **Invitation RPCs exist but have no UI:** `accept_company_invitation` and `decline_company_invitation` are deployed server-side. The settings page needs an "Invitations" tab to expose invite-by-email/username, pending list, and revoke functionality.
+15. **Ownership transfer RPC exists but has no UI:** `transfer_company_ownership` is deployed. Needs a "Danger Zone" section in settings with a transfer dialog and soft-delete confirmation.
