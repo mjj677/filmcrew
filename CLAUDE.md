@@ -9,7 +9,7 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging)
+- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions)
 - **SEO:** react-helmet-async
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
@@ -30,7 +30,7 @@ src/
 │   ├── layout/
 │   │   ├── Navbar.tsx
 │   │   ├── NavLinks.tsx
-│   │   ├── UserMenu.tsx          # Avatar dropdown — will house company context switcher
+│   │   ├── UserMenu.tsx          # Avatar dropdown with company context switcher
 │   │   └── RootLayout.tsx
 │   ├── ui/                       # shadcn components (don't manually edit)
 │   ├── profile/
@@ -54,13 +54,18 @@ src/
 │   │   ├── ConnectionCard.tsx
 │   │   ├── ConnectionsSkeleton.tsx
 │   │   └── ConnectionsTabs.tsx
-│   └── inbox/
-│       ├── ConversationList.tsx
-│       ├── ConversationItem.tsx
-│       ├── ChatView.tsx
-│       ├── ChatBubble.tsx
-│       ├── ChatInput.tsx
-│       └── InboxSkeleton.tsx
+│   ├── inbox/
+│   │   ├── ConversationList.tsx
+│   │   ├── ConversationItem.tsx
+│   │   ├── ChatView.tsx
+│   │   ├── ChatBubble.tsx
+│   │   ├── ChatInput.tsx
+│   │   └── InboxSkeleton.tsx
+│   └── company/
+│       ├── CreateCompanyForm.tsx  # Company creation form with slug auto-gen + availability check
+│       ├── CreateProductionForm.tsx # Production creation form with type/schedule/budget fields
+│       ├── EditCompanyForm.tsx    # Pre-filled edit form (slug read-only, dirty tracking)
+│       └── TeamManagement.tsx     # Member list with role changes, removal, leave, confirmation dialogs
 ├── context/
 │   └── AuthContext.tsx
 ├── hooks/
@@ -75,7 +80,11 @@ src/
 │   ├── useMessages.ts
 │   ├── useStartConversation.ts
 │   ├── useUnreadCount.ts
-│   └── useScrollRestoration.ts
+│   ├── useScrollRestoration.ts
+│   ├── useCompanies.ts           # useUserCompanies, useCreateCompany, useUpdateCompany, useUpdateMemberRole, useRemoveMember, generateSlug, checkSlugAvailability
+│   ├── useCompanyDetail.ts       # Fetches company + members (with profiles) + productions + current user role
+│   ├── useProductions.ts         # useCreateProduction, generateProductionSlug, checkProductionSlugAvailability
+│   └── useProductionDetail.ts    # Fetches production + parent company + jobs + current user role
 ├── lib/
 │   ├── supabase.ts
 │   ├── constants.ts
@@ -90,10 +99,15 @@ src/
 │   ├── PostJob.tsx               # Stub — will be refactored into production-scoped flow
 │   ├── Inbox.tsx
 │   ├── Profile.tsx
-│   └── Connections.tsx
+│   ├── Connections.tsx
+│   ├── CreateCompany.tsx         # Thin shell → CreateCompanyForm
+│   ├── CompanyDashboard.tsx      # Stats, productions list, team grid, permission-gated actions
+│   ├── CompanySettings.tsx       # Tabbed layout: Details + Team (Invitations + Danger Zone TODO)
+│   ├── CreateProduction.tsx      # Tier limit check → CreateProductionForm
+│   └── ProductionDetail.tsx      # Public production page with meta cards, job listings, draft banner
 └── types/
     ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types`
-    └── models.ts                 # Convenience type exports
+    └── models.ts                 # Convenience type exports including all new company/production types
 ```
 
 ## Key Architecture Decisions
@@ -121,8 +135,8 @@ src/
 - **Production Companies** are the top-level business entity. One owner, multiple members with role-based access (owner/admin/member).
 - **Productions** (films, commercials, etc.) belong to a company. Each production has a lifecycle status (pre_production → in_production → post_production → wrapped/cancelled).
 - **Job Posts** belong to a production (via `production_id`). Legacy `company` and `project_type` columns remain temporarily on `job_posts` for backward compatibility.
-- **Context Switching:** Users can switch between personal context and company context via the UserMenu dropdown (X/Instagram style). Auth session never changes — the UI adapts based on active context.
-- **Tier Enforcement:** Server-side triggers prevent exceeding production/job limits regardless of client behaviour. Free tier: 1 active production, 3 jobs per production.
+- **Context Switching:** Users can switch between personal context and company context via the UserMenu dropdown (X/Instagram style). Auth session never changes — the UI adapts based on active context. Companies listed in dropdown link directly to their dashboards.
+- **Tier Enforcement:** Server-side triggers prevent exceeding production/job limits regardless of client behaviour. Free tier: 1 active production, 3 jobs per production. Client-side checks provide early UX feedback (e.g. showing upgrade prompt instead of form when at limit).
 
 ### Company Membership & Invitations
 - `production_company_members` tracks who belongs to which company and their role.
@@ -130,10 +144,14 @@ src/
 - `company_invitations` supports inviting by user ID or email (for users who haven't signed up yet). A trigger on `profiles` INSERT auto-links pending email invitations when someone signs up.
 - Invitations expire after 14 days. Can be accepted, declined, or revoked.
 - Owners cannot leave a company — they must transfer ownership first.
+- **Team management UI built:** role changes via dropdown menu, member removal with confirmation dialog, permission-aware action visibility (owners see more than admins, admins see more than members, nobody can edit themselves).
 
 ### Slug System
 - Companies and productions use slugs for URL-friendly identifiers.
 - `validate_slug()` function enforces: lowercase alphanumeric + hyphens, 2–60 chars, no leading/trailing hyphens, not in `reserved_slugs` table.
+- `generateSlug()` and `generateProductionSlug()` utility functions auto-generate slugs from names.
+- `checkSlugAvailability()` and `checkProductionSlugAvailability()` run server-side validation + uniqueness checks with 400ms debounce.
+- Slug fields auto-generate from name/title, with "Edit manually" option. Live status indicator (checking/available/taken/invalid).
 - Reserved slugs include route names (`admin`, `api`, `auth`, `companies`, `crew`, `jobs`, `profile`, etc.) to prevent collisions.
 - Slugs are currently immutable. Slug change support (with redirect history) is a future enhancement.
 
@@ -314,34 +332,28 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 
 ## Routes
 
-| Path | Auth | Component |
-|------|------|-----------|
-| `/` | No | Redirects to `/home` |
-| `/home` | No | Home |
-| `/crew` | No | CrewDirectory |
-| `/crew/:username` | No | CrewProfile |
-| `/jobs` | No | Jobs (stub) |
-| `/jobs/post` | **Yes** | PostJob (stub — will be refactored) |
-| `/jobs/:id` | No | Job detail (stub) |
-| `/auth` | No | Auth (sign in) |
-| `/auth/callback` | No | AuthCallback |
-| `/inbox` | **Yes** | Inbox |
-| `/inbox/:conversationId` | **Yes** | Inbox (with active chat) |
-| `/profile` | **Yes** | Profile |
-| `/connections` | **Yes** | Connections |
-
-### Planned Routes (Production Companies)
-
-| Path | Auth | Purpose |
-|------|------|---------|
-| `/companies` | No | Browse production companies |
-| `/companies/:slug` | No | Company public profile |
-| `/companies/:slug/dashboard` | **Yes** | Company dashboard (members only) |
-| `/companies/:slug/productions` | **Yes** | Company's productions list |
-| `/companies/:slug/settings` | **Yes** | Company settings (admin+) |
-| `/companies/new` | **Yes** | Create company form |
-| `/productions/:slug` | No | Production detail (public when published) |
-| `/productions/:slug/jobs/new` | **Yes** | Post job under production (admin+) |
+| Path | Auth | Component | Status |
+|------|------|-----------|--------|
+| `/` | No | Redirects to `/home` | ✅ |
+| `/home` | No | Home | ✅ |
+| `/crew` | No | CrewDirectory | ✅ |
+| `/crew/:username` | No | CrewProfile | ✅ |
+| `/jobs` | No | Jobs | Stub |
+| `/jobs/post` | **Yes** | PostJob | Stub |
+| `/jobs/:id` | No | Job detail | Stub |
+| `/auth` | No | Auth (sign in) | ✅ |
+| `/auth/callback` | No | AuthCallback | ✅ |
+| `/inbox` | **Yes** | Inbox | ✅ |
+| `/inbox/:conversationId` | **Yes** | Inbox (with active chat) | ✅ |
+| `/profile` | **Yes** | Profile | ✅ |
+| `/connections` | **Yes** | Connections | ✅ |
+| `/companies/new` | **Yes** | CreateCompany | ✅ |
+| `/companies/:slug/dashboard` | **Yes** | CompanyDashboard | ✅ |
+| `/companies/:slug/settings` | **Yes** | CompanySettings | ✅ (Details + Team tabs) |
+| `/companies/:slug/productions/new` | **Yes** | CreateProduction | ✅ |
+| `/productions/:slug` | No | ProductionDetail | ✅ |
+| `/companies` | No | Browse companies | Not built |
+| `/companies/:slug` | No | Company public profile | Not built |
 
 ## Environment Variables
 
@@ -369,7 +381,7 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] AuthContext with session persistence + safe sign-in side-effects
 - [x] TanStack Query wired for Profile (useProfile hook + mutations + invalidation)
 - [x] Responsive navbar with sliding underline indicator
-- [x] UserMenu with avatar dropdown
+- [x] UserMenu with avatar dropdown + company context switcher
 - [x] Protected routes (inbox, profile, connections)
 - [x] Profile Editor (sections + image upload + showreel preview + skills picker)
 - [x] Profile setup wizard redirect via `has_completed_setup`
@@ -381,34 +393,45 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Crew Profile pages (public view via /crew/:username)
 - [x] Connection system (send/accept/decline/withdraw, mutual connections)
 - [x] Messaging system (real-time via Supabase, typing indicators, unread counts)
-- [x] **Production company schema** (companies, members, invitations, productions, audit log, tier enforcement, slug validation, helper functions, RLS policies)
+- [x] Production company schema (companies, members, invitations, productions, audit log, tier enforcement, slug validation, helper functions, RLS policies)
+- [x] Company creation flow (form with slug auto-gen, availability check, auto-owner membership)
+- [x] Company dashboard (stats cards, productions list, team grid, permission-gated actions)
+- [x] Company settings — Details tab (edit name/description/location/website, slug read-only, dirty tracking)
+- [x] Company settings — Team tab (member list, role changes via dropdown, removal with confirmation dialog, leave company, permission-aware action visibility)
+- [x] Production creation flow (form with type/schedule/location/budget, tier limit check before showing form)
+- [x] Production detail page (public page with meta cards, job listings, draft banner for unpublished, company link)
+- [x] Context switcher in UserMenu (lists user's companies with logos/roles, links to dashboards, create company shortcut)
 
-## What Needs to Be Built
+## What Needs to Be Built Next
 
-### Production Company Feature (Current Sprint)
-- [ ] Company creation flow (form + auto-owner membership)
-- [ ] Context switcher in UserMenu (personal ↔ company)
-- [ ] Company dashboard shell
-- [ ] Company settings page (edit details, manage members)
-- [ ] Member invitation flow (invite by user/email, accept/decline)
-- [ ] Productions CRUD (create/edit under company context)
-- [ ] Job posts refactored to require production_id
-- [ ] Public company profile page (/companies/:slug)
-- [ ] Public production page (/productions/:slug)
-- [ ] Enhanced job search with production/company context
+### Company Settings — Remaining Tabs (Priority)
+- [ ] **Invitation flow:** Invite by username or email, view pending invitations list with status/expiry, revoke pending invites. RPCs exist (`accept_company_invitation`, `decline_company_invitation`) but no UI yet.
+- [ ] **Danger zone:** Transfer ownership (RPC `transfer_company_ownership` exists but no UI), soft-delete company with confirmation.
 
-### Remaining Core Features
-- [ ] Job listings page (browse, filter)
-- [ ] Job detail page (/jobs/:id)
-- [ ] Job application flow (apply with cover message)
-- [ ] Email notifications for new messages (Supabase Edge Function)
-- [ ] Tier limit UX (upgrade prompts when limits reached)
+### Company Feature — Remaining Pages
+- [ ] Public company profile page (`/companies/:slug`) — public-facing page for non-members to see company info, published productions, open jobs
+- [ ] Browse companies page (`/companies`) — searchable directory of production companies
 
-### Stripe Integration (After MVP)
+### Job System (Refactored Under Productions)
+- [ ] **Job creation form** scoped to a production (`/productions/:slug/jobs/new` or similar) — replaces the old `PostJob` stub
+- [ ] **Job detail page** (`/jobs/:id`) — full job listing with apply button
+- [ ] **Job application flow** — apply with cover message, status tracking
+- [ ] **Job listings page** (`/jobs`) — browse/filter across all productions with company/production context shown
+- [ ] Remove legacy `company` and `project_type` columns from `job_posts` once all jobs flow through productions
+
+### Production Enhancements
+- [ ] **Edit production** — update details, change status (publish/wrap/cancel)
+- [ ] **Production publish flow** — toggle `is_published` from settings or dashboard
+
+### Tier & Billing
+- [ ] Tier limit UX (upgrade prompts when limits reached — client-side check exists on CreateProduction, needs to be added elsewhere)
 - [ ] Stripe checkout for company tier upgrades
 - [ ] Webhook handler to update tier/tier_status columns
 - [ ] Subscription management (cancel, resume, change plan)
 - [ ] Swish support (enabled as Stripe payment method in Sweden)
+
+### Other Core Features
+- [ ] Email notifications for new messages (Supabase Edge Function)
 
 ### Future Features
 - [ ] Verification badges
@@ -437,6 +460,8 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 8. **NavLinks indicator:** Uses `pathname ===` for exact matching.
 9. **Soft deletes:** `production_companies` and `productions` use `deleted_at`. Always filter on `deleted_at IS NULL` in queries. No DELETE RLS policies exist.
 10. **Slug validation:** Slugs must pass `validate_slug()` — lowercase alphanumeric + hyphens, 2–60 chars, not reserved. Always validate client-side before submission for UX, but server enforces via CHECK constraint.
-11. **Tier limits:** Enforced server-side via triggers on INSERT. Client should check limits before attempting to create (for good UX), but the database is the source of truth.
-12. **Owner safety:** Company owners cannot leave or be removed. Ownership must be explicitly transferred via `transfer_company_ownership()` RPC.
+11. **Tier limits:** Enforced server-side via triggers on INSERT. Client should check limits before attempting to create (for good UX), but the database is the source of truth. CreateProduction page already shows upgrade prompt when at limit.
+12. **Owner safety:** Company owners cannot leave or be removed. Ownership must be explicitly transferred via `transfer_company_ownership()` RPC. TeamManagement component enforces this in the UI.
 13. **Legacy job_posts columns:** `company` and `project_type` still exist on `job_posts` for backward compatibility. Will be removed in a follow-up migration once all jobs flow through productions.
+14. **Invitation RPCs exist but have no UI:** `accept_company_invitation` and `decline_company_invitation` are deployed server-side. The settings page needs an "Invitations" tab to expose invite-by-email/username, pending list, and revoke functionality.
+15. **Ownership transfer RPC exists but has no UI:** `transfer_company_ownership` is deployed. Needs a "Danger Zone" section in settings with a transfer dialog and soft-delete confirmation.

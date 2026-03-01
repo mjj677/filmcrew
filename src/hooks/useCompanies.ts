@@ -125,6 +125,108 @@ export async function checkSlugAvailability(
   return data === null; // null means no existing company has this slug
 }
 
+// ── Update mutation ────────────────────────────────────────
+
+type UpdateCompanyInput = {
+  companyId: string;
+  slug: string; // for cache invalidation
+  name?: string;
+  description?: string | null;
+  city?: string | null;
+  country?: string | null;
+  website_url?: string | null;
+  logo_url?: string | null;
+};
+
+export function useUpdateCompany() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ companyId, slug, ...fields }: UpdateCompanyInput) => {
+      const { data, error } = await supabase
+        .from("production_companies")
+        .update(fields)
+        .eq("id", companyId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return { company: data as ProductionCompany, slug };
+    },
+    onSuccess: ({ slug }) => {
+      queryClient.invalidateQueries({ queryKey: companyKeys.detail(slug) });
+      toast.success("Company updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update company", { description: error.message });
+    },
+  });
+}
+
+// ── Member mutations ──────────────────────────────────────
+
+export function useUpdateMemberRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      memberId,
+      role,
+      companySlug,
+    }: {
+      memberId: string;
+      role: CompanyRole;
+      companySlug: string;
+    }) => {
+      const { error } = await supabase
+        .from("production_company_members")
+        .update({ role })
+        .eq("id", memberId);
+
+      if (error) throw new Error(error.message);
+      return { companySlug };
+    },
+    onSuccess: ({ companySlug }) => {
+      queryClient.invalidateQueries({ queryKey: companyKeys.detail(companySlug) });
+      toast.success("Role updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update role", { description: error.message });
+    },
+  });
+}
+
+export function useRemoveMember() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      memberId,
+      companySlug,
+    }: {
+      memberId: string;
+      companySlug: string;
+    }) => {
+      const { error } = await supabase
+        .from("production_company_members")
+        .delete()
+        .eq("id", memberId);
+
+      if (error) throw new Error(error.message);
+      return { companySlug };
+    },
+    onSuccess: ({ companySlug }) => {
+      queryClient.invalidateQueries({ queryKey: companyKeys.detail(companySlug) });
+      toast.success("Member removed");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to remove member", { description: error.message });
+    },
+  });
+}
+
+// ── Create mutation ───────────────────────────────────────
+
 type CreateCompanyInput = {
   name: string;
   slug: string;
