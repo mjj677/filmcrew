@@ -5,12 +5,14 @@ import {
   HouseIcon,
   UsersIcon,
   BriefcaseIcon,
-  ChatCircleIcon
+  ChatCircleIcon,
+  BuildingsIcon
 } from "@phosphor-icons/react";
 
 const NAV_LINKS = [
   { to: "/home", label: "Home", icon: HouseIcon },
   { to: "/crew", label: "Directory", icon: UsersIcon },
+  { to: "/companies", label: "Companies", icon: BuildingsIcon },
   { to: "/jobs", label: "Jobs", icon: BriefcaseIcon },
 ] as const;
 

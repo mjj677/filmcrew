@@ -511,8 +511,6 @@ The job application flow and jobs browse page are now complete. The remaining hi
 
 ### LOWER PRIORITY — Enhancement Layer
 
-- [ ] **Navbar link to `/companies`** — the browse directory is reachable via company links on production/job pages but not directly from the navbar
-
 #### Server-side Job Filtering (Performance)
 - [ ] **Move production status/publish filtering server-side** — currently `useJobList` fetches all active jobs then filters client-side for production state before paginating. This works at current scale but should move to a Postgres view or function for production use. The client-side pagination after filtering means page counts can be inaccurate.
 
