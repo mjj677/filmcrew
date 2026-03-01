@@ -9,7 +9,7 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions)
+- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions, Jobs)
 - **SEO:** react-helmet-async
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
@@ -62,10 +62,14 @@ src/
 │   │   ├── ChatInput.tsx
 │   │   └── InboxSkeleton.tsx
 │   └── company/
-│       ├── CreateCompanyForm.tsx  # Company creation form with slug auto-gen + availability check
-│       ├── CreateProductionForm.tsx # Production creation form with type/schedule/budget fields
-│       ├── EditCompanyForm.tsx    # Pre-filled edit form (slug read-only, dirty tracking)
-│       └── TeamManagement.tsx     # Member list with role changes, removal, leave, confirmation dialogs
+│       ├── CreateCompanyForm.tsx      # Company creation form with slug auto-gen + availability check
+│       ├── CreateProductionForm.tsx   # Production creation form with type/schedule/budget fields
+│       ├── CreateJobForm.tsx          # Job creation form scoped to a production
+│       ├── EditCompanyForm.tsx        # Pre-filled edit form (slug read-only, dirty tracking)
+│       ├── EditProductionForm.tsx     # Pre-filled edit form with status change + publish toggle
+│       ├── TeamManagement.tsx         # Member list with role changes, removal, leave, confirmation dialogs
+│       ├── InvitationManagement.tsx   # Invite form + pending list with revoke + history
+│       └── DangerZone.tsx             # Transfer ownership + soft-delete company
 ├── context/
 │   └── AuthContext.tsx
 ├── hooks/
@@ -81,10 +85,12 @@ src/
 │   ├── useStartConversation.ts
 │   ├── useUnreadCount.ts
 │   ├── useScrollRestoration.ts
-│   ├── useCompanies.ts           # useUserCompanies, useCreateCompany, useUpdateCompany, useUpdateMemberRole, useRemoveMember, generateSlug, checkSlugAvailability
-│   ├── useCompanyDetail.ts       # Fetches company + members (with profiles) + productions + current user role
-│   ├── useProductions.ts         # useCreateProduction, generateProductionSlug, checkProductionSlugAvailability
-│   └── useProductionDetail.ts    # Fetches production + parent company + jobs + current user role
+│   ├── useCompanies.ts               # useUserCompanies, useCreateCompany, useUpdateCompany, useUpdateMemberRole, useRemoveMember, generateSlug, checkSlugAvailability
+│   ├── useCompanyDetail.ts           # Fetches company + members (with profiles) + productions + current user role
+│   ├── useInvitations.ts             # useCompanyInvitations, useSendInvitation, useRevokeInvitation
+│   ├── useProductions.ts             # useCreateProduction, useUpdateProduction, useTogglePublish, useChangeProductionStatus, generateProductionSlug, checkProductionSlugAvailability
+│   ├── useProductionDetail.ts        # Fetches production + parent company + jobs + current user role
+│   └── useJobs.ts                    # useCreateJob, useJobDetail, useJobList, isJobEffectivelyClosed, jobKeys
 ├── lib/
 │   ├── supabase.ts
 │   ├── constants.ts
@@ -95,19 +101,24 @@ src/
 │   ├── Home.tsx
 │   ├── CrewDirectory.tsx
 │   ├── CrewProfile.tsx
-│   ├── Jobs.tsx                  # Stub
-│   ├── PostJob.tsx               # Stub — will be refactored into production-scoped flow
+│   ├── Jobs.tsx                       # Stub — needs full browse/filter UI (useJobList hook is ready)
 │   ├── Inbox.tsx
 │   ├── Profile.tsx
 │   ├── Connections.tsx
-│   ├── CreateCompany.tsx         # Thin shell → CreateCompanyForm
-│   ├── CompanyDashboard.tsx      # Stats, productions list, team grid, permission-gated actions
-│   ├── CompanySettings.tsx       # Tabbed layout: Details + Team (Invitations + Danger Zone TODO)
-│   ├── CreateProduction.tsx      # Tier limit check → CreateProductionForm
-│   └── ProductionDetail.tsx      # Public production page with meta cards, job listings, draft banner
+│   ├── CreateCompany.tsx              # Thin shell → CreateCompanyForm
+│   ├── CompanyDashboard.tsx           # Stats, productions list, team grid, permission-gated actions
+│   ├── CompanySettings.tsx            # Tabbed layout: Details + Team + Invitations + Danger Zone
+│   ├── CreateProduction.tsx           # Tier limit check → CreateProductionForm
+│   ├── ProductionDetail.tsx           # Public production page with meta cards, job listings, draft banner, edit/publish/unpublish buttons
+│   ├── EditProduction.tsx             # Thin shell → EditProductionForm
+│   ├── CreateJob.tsx                  # Permission + status check → CreateJobForm
+│   └── JobDetail.tsx                  # Full job listing with production/company context, apply section, wrapped/cancelled awareness
 └── types/
-    ├── database.ts               # AUTO-GENERATED — run `pnpm gen-types`
-    └── models.ts                 # Convenience type exports including all new company/production types
+    ├── database.ts                    # AUTO-GENERATED — run `pnpm gen-types`
+    └── models.ts                      # Convenience type exports including all company/production/job types
+
+DELETED:
+- PostJob.tsx                          # Replaced by CreateJob.tsx (job creation now scoped to productions)
 ```
 
 ## Key Architecture Decisions
@@ -137,6 +148,8 @@ src/
 - **Job Posts** belong to a production (via `production_id`). Legacy `company` and `project_type` columns remain temporarily on `job_posts` for backward compatibility.
 - **Context Switching:** Users can switch between personal context and company context via the UserMenu dropdown (X/Instagram style). Auth session never changes — the UI adapts based on active context. Companies listed in dropdown link directly to their dashboards.
 - **Tier Enforcement:** Server-side triggers prevent exceeding production/job limits regardless of client behaviour. Free tier: 1 active production, 3 jobs per production. Client-side checks provide early UX feedback (e.g. showing upgrade prompt instead of form when at limit).
+- **Production Status Guards:** Jobs cannot be posted on wrapped/cancelled productions. Enforced server-side via the `enforce_job_limit()` trigger function (which checks production status before tier limits) and client-side by hiding the "Post a job" button and showing a blocking message on the CreateJob page.
+- **Job Effective Closure:** Jobs are treated as effectively closed when their parent production is wrapped/cancelled, even if `is_active` is still true. The `isJobEffectivelyClosed()` helper in `useJobs.ts` centralises this logic. JobDetail shows a banner and hides the apply section. The browse list filters these out.
 
 ### Company Membership & Invitations
 - `production_company_members` tracks who belongs to which company and their role.
@@ -145,6 +158,8 @@ src/
 - Invitations expire after 14 days. Can be accepted, declined, or revoked.
 - Owners cannot leave a company — they must transfer ownership first.
 - **Team management UI built:** role changes via dropdown menu, member removal with confirmation dialog, permission-aware action visibility (owners see more than admins, admins see more than members, nobody can edit themselves).
+- **Invitation UI built:** invite by username or email, role selector, pending list with expiry countdown and revoke, historical invitations section. No email notification sent yet — the invitation record is created in the DB and auto-links on signup, but the invitee isn't notified.
+- **Danger zone UI built:** transfer ownership (calls `transfer_company_ownership` RPC, demotes current owner → admin), soft-delete company with type-slug-to-confirm pattern.
 
 ### Slug System
 - Companies and productions use slugs for URL-friendly identifiers.
@@ -203,6 +218,15 @@ src/
 - Use shadcn/ui components for all UI elements
 - Keep page files thin — extract reusable pieces into `components/`
 - Every page gets a `<Helmet>` for SEO title
+
+### Cache Invalidation Strategy
+- Production status changes (`useChangeProductionStatus`) invalidate: production detail, company detail, AND all job queries (since status affects job visibility)
+- Production publish/unpublish (`useTogglePublish`) invalidates the same three: production detail, company detail, all job queries
+- Production updates (`useUpdateProduction`) invalidate production detail + company detail
+- Job creation (`useCreateJob`) invalidates production detail + all job queries
+- Company updates invalidate company detail + user companies
+- Member changes invalidate company detail
+- Invitation changes invalidate company invitations query
 
 ## Database Schema
 
@@ -272,7 +296,9 @@ src/
 - experience_level, compensation, deadline, is_active
 - **production_id** (FK to productions, nullable for backward compat)
 - **is_flagged**, **flagged_reason** (moderation)
-- INSERT trigger enforces max_active_jobs_per_production tier limit
+- INSERT trigger (`enforce_job_limit`) enforces:
+  1. Production status check — blocks inserts on wrapped/cancelled productions
+  2. Tier limit — max_active_jobs_per_production from the parent company
 - Legacy columns `company` and `project_type` remain until all jobs flow through productions
 
 ### job_applications
@@ -325,7 +351,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 - **Conversations:** Participants can read, any authenticated user can create
 - **Conversation participants:** Participants can view co-participants, authenticated users can add
 - **Messages:** Participants can read/send/update (mark read)
-- **Job posts:** Public read (active only), poster can create/update/delete (+ tier limit trigger)
+- **Job posts:** Public read (active only), poster can create/update/delete (+ tier limit trigger + production status trigger)
 - **Job applications:** Applicant can read own, poster can read for their jobs, applicant can create, poster can update status
 - **Audit log:** Company members can read, no client writes (triggers only)
 - **Reserved slugs:** Public read, no client writes (migrations only)
@@ -338,9 +364,8 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/home` | No | Home | ✅ |
 | `/crew` | No | CrewDirectory | ✅ |
 | `/crew/:username` | No | CrewProfile | ✅ |
-| `/jobs` | No | Jobs | Stub |
-| `/jobs/post` | **Yes** | PostJob | Stub |
-| `/jobs/:id` | No | Job detail | Stub |
+| `/jobs` | No | Jobs | ⚠️ Stub — hook ready, needs browse UI |
+| `/jobs/:id` | No | JobDetail | ✅ |
 | `/auth` | No | Auth (sign in) | ✅ |
 | `/auth/callback` | No | AuthCallback | ✅ |
 | `/inbox` | **Yes** | Inbox | ✅ |
@@ -349,9 +374,11 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/connections` | **Yes** | Connections | ✅ |
 | `/companies/new` | **Yes** | CreateCompany | ✅ |
 | `/companies/:slug/dashboard` | **Yes** | CompanyDashboard | ✅ |
-| `/companies/:slug/settings` | **Yes** | CompanySettings | ✅ (Details + Team tabs) |
+| `/companies/:slug/settings` | **Yes** | CompanySettings | ✅ (all 4 tabs) |
 | `/companies/:slug/productions/new` | **Yes** | CreateProduction | ✅ |
 | `/productions/:slug` | No | ProductionDetail | ✅ |
+| `/productions/:slug/edit` | **Yes** | EditProduction | ✅ |
+| `/productions/:slug/jobs/new` | **Yes** | CreateJob | ✅ |
 | `/companies` | No | Browse companies | Not built |
 | `/companies/:slug` | No | Company public profile | Not built |
 
@@ -398,42 +425,69 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Company dashboard (stats cards, productions list, team grid, permission-gated actions)
 - [x] Company settings — Details tab (edit name/description/location/website, slug read-only, dirty tracking)
 - [x] Company settings — Team tab (member list, role changes via dropdown, removal with confirmation dialog, leave company, permission-aware action visibility)
+- [x] Company settings — Invitations tab (invite by username/email, role selector, pending list with expiry countdown, revoke, historical invitations)
+- [x] Company settings — Danger Zone tab (transfer ownership via RPC, soft-delete company with slug confirmation)
 - [x] Production creation flow (form with type/schedule/location/budget, tier limit check before showing form)
 - [x] Production detail page (public page with meta cards, job listings, draft banner for unpublished, company link)
+- [x] Edit production (pre-filled form, dirty tracking, status & visibility section with publish toggle + status dropdown with confirmation dialog)
 - [x] Context switcher in UserMenu (lists user's companies with logos/roles, links to dashboards, create company shortcut)
+- [x] Job creation flow (form scoped to production, permission-gated, blocked on wrapped/cancelled, draft warning)
+- [x] Job detail page (production/company context, meta badges, apply section with deadline awareness, wrapped/cancelled banner)
+- [x] Job visibility logic (isJobEffectivelyClosed helper, browse list filters out jobs on unpublished/wrapped/cancelled productions)
+- [x] Server-side enforcement: no job inserts on wrapped/cancelled productions (enforce_job_limit trigger)
+- [x] Cross-entity cache invalidation (production status/publish changes invalidate job caches)
+- [x] Old PostJob page removed — job creation now flows through productions
 
 ## What Needs to Be Built Next
 
-### Company Settings — Remaining Tabs (Priority)
-- [ ] **Invitation flow:** Invite by username or email, view pending invitations list with status/expiry, revoke pending invites. RPCs exist (`accept_company_invitation`, `decline_company_invitation`) but no UI yet.
-- [ ] **Danger zone:** Transfer ownership (RPC `transfer_company_ownership` exists but no UI), soft-delete company with confirmation.
+### HIGH PRIORITY — Completes the Core Loop
 
-### Company Feature — Remaining Pages
-- [ ] Public company profile page (`/companies/:slug`) — public-facing page for non-members to see company info, published productions, open jobs
-- [ ] Browse companies page (`/companies`) — searchable directory of production companies
+#### Job Application Flow
+- [ ] **Apply form on JobDetail** — replace the placeholder in the `#apply` section with a real form: cover message textarea + submit button. Use `job_applications` table (schema already exists: `job_id`, `applicant_id`, `cover_message`, `status`). Unique constraint on `(job_id, applicant_id)` prevents duplicate applications.
+- [ ] **Application status for applicants** — after applying, show "Applied" state instead of the form. Consider a "My Applications" page or section on the profile.
+- [ ] **Application management for job posters** — on JobDetail or a separate view, show list of applicants with cover messages, ability to update status (pending → reviewed → accepted → rejected). Only visible to the job poster / company admins.
+- [ ] **Hook needed:** `useJobApplications.ts` — `useApplyToJob`, `useMyApplications`, `useJobApplicants`, `useUpdateApplicationStatus`
 
-### Job System (Refactored Under Productions)
-- [ ] **Job creation form** scoped to a production (`/productions/:slug/jobs/new` or similar) — replaces the old `PostJob` stub
-- [ ] **Job detail page** (`/jobs/:id`) — full job listing with apply button
-- [ ] **Job application flow** — apply with cover message, status tracking
-- [ ] **Job listings page** (`/jobs`) — browse/filter across all productions with company/production context shown
-- [ ] Remove legacy `company` and `project_type` columns from `job_posts` once all jobs flow through productions
+#### Jobs Browse Page (`/jobs`)
+- [ ] **Full browse/filter UI** — the `useJobList` hook and `fetchJobList` function are already built with support for `search`, `category`, `type`, `experience_level`, and `is_remote` filters. The Jobs page (`src/pages/Jobs.tsx`) is still a stub. Needs: search input, filter dropdowns, job cards grid/list, pagination, URL-synced filter state (like CrewDirectory).
+- [ ] **Job cards component** — reusable card showing title, company logo/name, production name, location, type, compensation, deadline. Link to `/jobs/:id`.
 
-### Production Enhancements
-- [ ] **Edit production** — update details, change status (publish/wrap/cancel)
-- [ ] **Production publish flow** — toggle `is_published` from settings or dashboard
+### MEDIUM PRIORITY — Important but Not Blocking
 
-### Tier & Billing
-- [ ] Tier limit UX (upgrade prompts when limits reached — client-side check exists on CreateProduction, needs to be added elsewhere)
-- [ ] Stripe checkout for company tier upgrades
-- [ ] Webhook handler to update tier/tier_status columns
-- [ ] Subscription management (cancel, resume, change plan)
+#### Company Public Pages
+- [ ] **Public company profile page** (`/companies/:slug`) — public-facing page for non-members showing company info, published productions, open jobs. Currently the company link on ProductionDetail points to `/companies/:slug/dashboard` which requires auth. The public profile should be accessible without auth.
+- [ ] **Browse companies page** (`/companies`) — searchable directory of production companies. Similar pattern to CrewDirectory.
+
+#### Invitation Acceptance UI (Invitee Side)
+- [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
+- [ ] **Hook needed:** `useMyInvitations.ts` — fetch invitations where `invited_user_id = currentUser` or `invited_email = currentUser.email`, with accept/decline mutations calling the existing RPCs.
+
+#### Email Notifications
+- [ ] **Invitation email** — when someone is invited to a company, send them an email. Requires a Supabase Edge Function triggered on `company_invitations` INSERT (or called from the client after invite creation) using a transactional email service (Resend, Postmark, etc.).
+- [ ] **Message notification email** — when someone receives a new message and is offline. Requires a Supabase Edge Function.
+- [ ] **Both share infrastructure** — email service setup, templates, unsubscribe handling.
+
+### LOWER PRIORITY — Enhancement Layer
+
+#### Job Editing & Management
+- [ ] **Edit job** — update title, description, fields. Toggle `is_active` to close/reopen a listing. Currently no edit UI exists for job posts.
+- [ ] **Job management view for company admins** — see all jobs across all productions with status, applicant counts, quick actions.
+
+#### Production Enhancements
+- [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
+
+#### Tier & Billing
+- [ ] Stripe checkout for company tier upgrades (free → pro → enterprise)
+- [ ] Webhook handler (Supabase Edge Function) to update `tier`, `tier_status`, `stripe_customer_id`, `stripe_subscription_id` columns
+- [ ] Subscription management UI (cancel, resume, change plan)
 - [ ] Swish support (enabled as Stripe payment method in Sweden)
+- [ ] Tier limit UX polish — upgrade prompts appear on CreateProduction when at limit, needs to also appear on CreateJob when at job limit
 
-### Other Core Features
-- [ ] Email notifications for new messages (Supabase Edge Function)
+#### Legacy Cleanup
+- [ ] Remove `company` and `project_type` columns from `job_posts` table once confirmed no legacy jobs exist without `production_id`
+- [ ] Remove `PostJob.tsx` file if still in the codebase (import already removed from App.tsx)
 
-### Future Features
+### FUTURE FEATURES
 - [ ] Verification badges
 - [ ] Forum / wall posts with comments
 - [ ] AI suggestion algorithm for forum content
@@ -463,5 +517,10 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 11. **Tier limits:** Enforced server-side via triggers on INSERT. Client should check limits before attempting to create (for good UX), but the database is the source of truth. CreateProduction page already shows upgrade prompt when at limit.
 12. **Owner safety:** Company owners cannot leave or be removed. Ownership must be explicitly transferred via `transfer_company_ownership()` RPC. TeamManagement component enforces this in the UI.
 13. **Legacy job_posts columns:** `company` and `project_type` still exist on `job_posts` for backward compatibility. Will be removed in a follow-up migration once all jobs flow through productions.
-14. **Invitation RPCs exist but have no UI:** `accept_company_invitation` and `decline_company_invitation` are deployed server-side. The settings page needs an "Invitations" tab to expose invite-by-email/username, pending list, and revoke functionality.
-15. **Ownership transfer RPC exists but has no UI:** `transfer_company_ownership` is deployed. Needs a "Danger Zone" section in settings with a transfer dialog and soft-delete confirmation.
+14. **Invitation emails not sent:** The invitation system creates DB records and the auto-link trigger works, but no actual email is sent to notify invitees. This is a known gap awaiting Edge Function infrastructure.
+15. **Ownership transfer RPC works but role changes are immediate:** When ownership is transferred, the current owner is immediately demoted to admin and loses owner-only UI (Danger Zone tab disappears on next data fetch).
+16. **Job effective closure:** Jobs on wrapped/cancelled productions are treated as closed client-side via `isJobEffectivelyClosed()` but the `is_active` flag on the job itself is NOT changed. This is intentional — if the production is unwrapped, the jobs become active again automatically.
+17. **Job visibility depends on production state:** Both `is_published` and `status` on the production affect whether jobs are visible in the browse list. The `useJobList` hook filters client-side for both conditions. The job detail page still loads (RLS allows reading active jobs directly) but shows appropriate banners.
+18. **PostJob.tsx is dead code:** The old `/jobs/post` route and `PostJob.tsx` page have been replaced by `/productions/:slug/jobs/new` and `CreateJob.tsx`. The import has been removed from App.tsx. Delete the file.
+19. **Company link on ProductionDetail goes to dashboard:** Currently links to `/companies/:slug/dashboard` (auth-required). Should link to public profile `/companies/:slug` once that page is built.
+20. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. This avoids issues with shadcn Select not supporting empty string values.
