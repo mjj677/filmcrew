@@ -9,7 +9,7 @@ FilmCrew is a LinkedIn-style web platform for film industry professionals. Users
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS 4 + shadcn/ui (Maia style, Stone base, Phosphor icons, DM Sans font, medium radius, subtle menu accent)
 - **Routing:** React Router DOM 7 (layout route pattern, BrowserRouter)
-- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions, Jobs)
+- **Data Fetching:** TanStack Query (wired up for Profile, Crew Directory, Connections, Messaging, Companies, Productions, Jobs, Job Applications)
 - **SEO:** react-helmet-async
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions for future server-side tasks)
 - **Hosting:** Cloudflare Pages (static deploy from `dist`)
@@ -30,7 +30,7 @@ src/
 │   ├── layout/
 │   │   ├── Navbar.tsx
 │   │   ├── NavLinks.tsx
-│   │   ├── UserMenu.tsx          # Avatar dropdown with company context switcher
+│   │   ├── UserMenu.tsx          # Avatar dropdown with company context switcher + My Applications link
 │   │   └── RootLayout.tsx
 │   ├── ui/                       # shadcn components (don't manually edit)
 │   ├── profile/
@@ -61,6 +61,14 @@ src/
 │   │   ├── ChatBubble.tsx
 │   │   ├── ChatInput.tsx
 │   │   └── InboxSkeleton.tsx
+│   ├── jobs/
+│   │   ├── ApplySection.tsx          # Apply form with all states (closed, deadline, applied, manager, form)
+│   │   ├── JobApplicationsPanel.tsx  # Applicant list with status dropdown for posters/admins
+│   │   ├── JobCard.tsx               # Reusable card for job browse grid
+│   │   ├── JobFilters.tsx            # Search + category/type/experience/remote filters
+│   │   ├── JobGrid.tsx               # Responsive grid with empty state
+│   │   ├── JobPagination.tsx         # Previous/next pagination
+│   │   └── JobSkeleton.tsx           # Loading skeleton for job grid
 │   └── company/
 │       ├── CreateCompanyForm.tsx      # Company creation form with slug auto-gen + availability check
 │       ├── CreateProductionForm.tsx   # Production creation form with type/schedule/budget fields
@@ -90,7 +98,9 @@ src/
 │   ├── useInvitations.ts             # useCompanyInvitations, useSendInvitation, useRevokeInvitation
 │   ├── useProductions.ts             # useCreateProduction, useUpdateProduction, useTogglePublish, useChangeProductionStatus, generateProductionSlug, checkProductionSlugAvailability
 │   ├── useProductionDetail.ts        # Fetches production + parent company + jobs + current user role
-│   └── useJobs.ts                    # useCreateJob, useJobDetail (tested), useJobList (drafted, not tested/wired), isJobEffectivelyClosed, jobKeys
+│   ├── useJobs.ts                    # useCreateJob, useJobDetail, useJobList (with pagination + filters), isJobEffectivelyClosed, JobWithContext, jobKeys
+│   ├── useJobApplications.ts         # useApplyToJob, useMyApplication, useMyApplications, useJobApplicants, useApplicantCounts, useUpdateApplicationStatus
+│   └── useJobDirectory.ts            # URL-synced filter + pagination state for /jobs (like useCrewDirectory)
 ├── lib/
 │   ├── supabase.ts
 │   ├── constants.ts
@@ -101,21 +111,22 @@ src/
 │   ├── Home.tsx
 │   ├── CrewDirectory.tsx
 │   ├── CrewProfile.tsx
-│   ├── Jobs.tsx                       # Stub — needs full browse/filter UI (useJobList hook is ready)
+│   ├── Jobs.tsx                       # Full browse page with filters, grid, pagination
 │   ├── Inbox.tsx
 │   ├── Profile.tsx
 │   ├── Connections.tsx
+│   ├── MyApplications.tsx             # Track all user's job applications with status
 │   ├── CreateCompany.tsx              # Thin shell → CreateCompanyForm
 │   ├── CompanyDashboard.tsx           # Stats, productions list, team grid, permission-gated actions
 │   ├── CompanySettings.tsx            # Tabbed layout: Details + Team + Invitations + Danger Zone
 │   ├── CreateProduction.tsx           # Tier limit check → CreateProductionForm
-│   ├── ProductionDetail.tsx           # Public production page with meta cards, job listings, draft banner, edit/publish/unpublish buttons
+│   ├── ProductionDetail.tsx           # Public production page with meta cards, job listings (with applicant count badges for admins), draft banner
 │   ├── EditProduction.tsx             # Thin shell → EditProductionForm
 │   ├── CreateJob.tsx                  # Permission + status check → CreateJobForm
-│   └── JobDetail.tsx                  # Full job listing with production/company context, apply section, wrapped/cancelled awareness
+│   └── JobDetail.tsx                  # Full job listing with apply section, applicant panel for managers, production/company context
 └── types/
     ├── database.ts                    # AUTO-GENERATED — run `pnpm gen-types`
-    └── models.ts                      # Convenience type exports including all company/production/job types
+    └── models.ts                      # Convenience type exports including JobApplication
 
 DELETED:
 - PostJob.tsx                          # Replaced by CreateJob.tsx (job creation now scoped to productions)
@@ -150,6 +161,14 @@ DELETED:
 - **Tier Enforcement:** Server-side triggers prevent exceeding production/job limits regardless of client behaviour. Free tier: 1 active production, 3 jobs per production. Client-side checks provide early UX feedback (e.g. showing upgrade prompt instead of form when at limit).
 - **Production Status Guards:** Jobs cannot be posted on wrapped/cancelled productions. Enforced server-side via the `enforce_job_limit()` trigger function (which checks production status before tier limits) and client-side by hiding the "Post a job" button and showing a blocking message on the CreateJob page.
 - **Job Effective Closure:** Jobs are treated as effectively closed when their parent production is wrapped/cancelled, even if `is_active` is still true. The `isJobEffectivelyClosed()` helper in `useJobs.ts` centralises this logic. JobDetail shows a banner and hides the apply section. The browse list filters these out.
+
+### Job Application System
+- **Apply flow:** Authenticated users see a cover message textarea (2000 char limit) on JobDetail. On submit, the application is inserted into `job_applications` with `status: 'pending'`. Duplicate applications are caught via the unique constraint on `(job_id, applicant_id)` — the 23505 Postgres error code triggers a user-friendly message.
+- **Application states in ApplySection:** The component handles 7 states: effectively closed, past deadline, manager view ("You're managing this listing"), not authenticated (sign-in CTA), loading (checking existing application), already applied (shows status badge + submitted date + cover message), and the apply form.
+- **Status tracking for applicants:** The "Already applied" state shows the current status with colour-coded badges: pending (blue), reviewed (amber), accepted (green), rejected (stone). The MyApplications page at `/applications` lists all applications with job/production/company context.
+- **Applicant management for posters/admins:** The JobApplicationsPanel on JobDetail shows all applicants with avatar, name, position, cover message, and a dropdown to change status (pending → reviewed → accepted → rejected). Visible to the job poster and company admins/owners.
+- **Applicant count badges:** ProductionDetail shows applicant count badges next to each job title for admin/owner users, fetched via `useApplicantCounts`.
+- **Permission model for canManage:** JobDetail computes `canManageApplicants` as `isOwnJob || isCompanyAdmin` where `isCompanyAdmin` checks `job.companyRole === 'owner' || 'admin'`. The company role is fetched in `useJobDetail` by querying `production_company_members` via the production → company chain.
 
 ### Company Membership & Invitations
 - `production_company_members` tracks who belongs to which company and their role.
@@ -227,6 +246,8 @@ DELETED:
 - Company updates invalidate company detail + user companies
 - Member changes invalidate company detail
 - Invitation changes invalidate company invitations query
+- Job application submit (`useApplyToJob`) invalidates: myApplication for that job, forJob applicants, myAll applications, and all application counts
+- Application status update (`useUpdateApplicationStatus`) invalidates: forJob applicants
 
 ## Database Schema
 
@@ -302,8 +323,15 @@ DELETED:
 - Legacy columns `company` and `project_type` remain until all jobs flow through productions
 
 ### job_applications
-- job_id, applicant_id, cover_message, status
-- Unique on (job_id, applicant_id)
+- job_id (FK to job_posts), applicant_id (FK to profiles via auth.users)
+- cover_message (text, nullable), status (text — 'pending', 'reviewed', 'accepted', 'rejected')
+- created_at, updated_at
+- Unique on (job_id, applicant_id) — prevents duplicate applications
+- **RLS policies (migrated in feat/job-application-flow):**
+  - SELECT: applicant reads own | poster reads for their jobs | company admin/owner reads for company's production jobs
+  - INSERT: authenticated users (applicant_id = self)
+  - UPDATE: poster can update status | company admin/owner can update status
+  - DELETE: no policy — applications are permanent
 
 ### audit_log
 - company_id, actor_id, action, target_type, target_id, metadata (jsonb)
@@ -352,7 +380,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 - **Conversation participants:** Participants can view co-participants, authenticated users can add
 - **Messages:** Participants can read/send/update (mark read)
 - **Job posts:** Public read (active only), poster can create/update/delete (+ tier limit trigger + production status trigger)
-- **Job applications:** Applicant can read own, poster can read for their jobs, applicant can create, poster can update status
+- **Job applications:** Applicant reads own | poster reads for their jobs | company admin/owner reads for company jobs | applicant inserts (self only) | poster and company admin/owner can update status | no deletes
 - **Audit log:** Company members can read, no client writes (triggers only)
 - **Reserved slugs:** Public read, no client writes (migrations only)
 
@@ -364,7 +392,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/home` | No | Home | ✅ |
 | `/crew` | No | CrewDirectory | ✅ |
 | `/crew/:username` | No | CrewProfile | ✅ |
-| `/jobs` | No | Jobs | ⚠️ Stub — hook ready, needs browse UI |
+| `/jobs` | No | Jobs | ✅ |
 | `/jobs/:id` | No | JobDetail | ✅ |
 | `/auth` | No | Auth (sign in) | ✅ |
 | `/auth/callback` | No | AuthCallback | ✅ |
@@ -372,6 +400,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/inbox/:conversationId` | **Yes** | Inbox (with active chat) | ✅ |
 | `/profile` | **Yes** | Profile | ✅ |
 | `/connections` | **Yes** | Connections | ✅ |
+| `/applications` | **Yes** | MyApplications | ✅ |
 | `/companies/new` | **Yes** | CreateCompany | ✅ |
 | `/companies/:slug/dashboard` | **Yes** | CompanyDashboard | ✅ |
 | `/companies/:slug/settings` | **Yes** | CompanySettings | ✅ (all 4 tabs) |
@@ -408,8 +437,8 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] AuthContext with session persistence + safe sign-in side-effects
 - [x] TanStack Query wired for Profile (useProfile hook + mutations + invalidation)
 - [x] Responsive navbar with sliding underline indicator
-- [x] UserMenu with avatar dropdown + company context switcher
-- [x] Protected routes (inbox, profile, connections)
+- [x] UserMenu with avatar dropdown + company context switcher + My Applications link
+- [x] Protected routes (inbox, profile, connections, applications)
 - [x] Profile Editor (sections + image upload + showreel preview + skills picker)
 - [x] Profile setup wizard redirect via `has_completed_setup`
 - [x] Layout route pattern with RootLayout
@@ -428,53 +457,62 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] Company settings — Invitations tab (invite by username/email, role selector, pending list with expiry countdown, revoke, historical invitations)
 - [x] Company settings — Danger Zone tab (transfer ownership via RPC, soft-delete company with slug confirmation)
 - [x] Production creation flow (form with type/schedule/location/budget, tier limit check before showing form)
-- [x] Production detail page (public page with meta cards, job listings, draft banner for unpublished, company link)
+- [x] Production detail page (public page with meta cards, job listings with applicant count badges for admins, draft banner for unpublished, company link)
 - [x] Edit production (pre-filled form, dirty tracking, status & visibility section with publish toggle + status dropdown with confirmation dialog)
 - [x] Context switcher in UserMenu (lists user's companies with logos/roles, links to dashboards, create company shortcut)
 - [x] Job creation flow (form scoped to production, permission-gated, blocked on wrapped/cancelled, draft warning)
-- [x] Job detail page (production/company context, meta badges, apply section with deadline awareness, wrapped/cancelled banner)
-- [x] Job visibility logic (isJobEffectivelyClosed helper for job detail page, draft useJobList filters out jobs on unpublished/wrapped/cancelled productions — NOT yet tested or wired to UI)
+- [x] Job detail page (production/company context, meta badges, apply section, applicant management panel for posters/admins, wrapped/cancelled banner)
+- [x] Job visibility logic (isJobEffectivelyClosed helper, useJobList filters out jobs on unpublished/wrapped/cancelled productions)
 - [x] Server-side enforcement: no job inserts on wrapped/cancelled productions (enforce_job_limit trigger)
 - [x] Cross-entity cache invalidation (production status/publish changes invalidate job caches)
 - [x] Old PostJob page removed — job creation now flows through productions
+- [x] **Jobs browse page** (`/jobs`) — full UI with search, category/type/experience/remote filters, responsive card grid, pagination, URL-synced state, scroll restoration
+- [x] **Job cards** — reusable JobCard component with company avatar, title, production context, meta badges, location/compensation/deadline info
+- [x] **useJobList hook** — server-side filtering + client-side production status/publish filtering + client-side pagination (JOB_PAGE_SIZE = 12)
+- [x] **useJobDirectory hook** — URL-synced filter + pagination state management (same pattern as useCrewDirectory)
+- [x] **Apply form on JobDetail** — ApplySection component with cover message textarea (2000 char limit), submit with loading state, duplicate detection (23505 error)
+- [x] **Application status for applicants** — "Already applied" state shows status badge (pending/reviewed/accepted/rejected), submitted date, and cover message preview
+- [x] **MyApplications page** (`/applications`) — protected route listing all user's applications with job/production/company context, status badges, skeleton loading, empty state
+- [x] **Applicant management for posters/admins** — JobApplicationsPanel on JobDetail with applicant list, avatar/name/position, cover message, status dropdown, toast feedback
+- [x] **useJobApplications hook** — useApplyToJob, useMyApplication, useMyApplications, useJobApplicants, useApplicantCounts, useUpdateApplicationStatus
+- [x] **RLS policies for job_applications** — migrated: applicant/poster/company-admin SELECT, applicant INSERT, poster/company-admin UPDATE, no DELETE
 
 ## What Needs to Be Built Next
 
 ### HIGH PRIORITY — Completes the Core Loop
 
-#### Job Application Flow
-- [ ] **Apply form on JobDetail** — replace the placeholder in the `#apply` section with a real form: cover message textarea + submit button. Use `job_applications` table (schema already exists: `job_id`, `applicant_id`, `cover_message`, `status`). Unique constraint on `(job_id, applicant_id)` prevents duplicate applications.
-- [ ] **Application status for applicants** — after applying, show "Applied" state instead of the form. Consider a "My Applications" page or section on the profile.
-- [ ] **Application management for job posters** — on JobDetail or a separate view, show list of applicants with cover messages, ability to update status (pending → reviewed → accepted → rejected). Only visible to the job poster / company admins.
-- [ ] **Hook needed:** `useJobApplications.ts` — `useApplyToJob`, `useMyApplications`, `useJobApplicants`, `useUpdateApplicationStatus`
-
-#### Jobs Browse Page (`/jobs`)
-- [ ] **Full browse/filter UI** — a draft `useJobList` hook and `fetchJobList` function exist in `useJobs.ts` with support for `search`, `category`, `type`, `experience_level`, and `is_remote` filters, but they have NOT been tested or wired to any UI yet. They will likely need refinement — pagination is not handled, and the client-side filtering for production status/publish state may need to move server-side for efficiency at scale. The Jobs page (`src/pages/Jobs.tsx`) is still a stub. Needs: search input, filter dropdowns, job cards grid/list, pagination, URL-synced filter state (like CrewDirectory).
-- [ ] **Job cards component** — reusable card showing title, company logo/name, production name, location, type, compensation, deadline. Link to `/jobs/:id`.
-
-### MEDIUM PRIORITY — Important but Not Blocking
+The job application flow and jobs browse page are now complete. The remaining high-priority items are:
 
 #### Company Public Pages
-- [ ] **Public company profile page** (`/companies/:slug`) — public-facing page for non-members showing company info, published productions, open jobs. Currently the company link on ProductionDetail points to `/companies/:slug/dashboard` which requires auth. The public profile should be accessible without auth.
+- [ ] **Public company profile page** (`/companies/:slug`) — public-facing page for non-members showing company info, published productions, open jobs. Currently the company link on ProductionDetail and JobDetail points to `/companies/:slug/dashboard` which requires auth. The public profile should be accessible without auth.
 - [ ] **Browse companies page** (`/companies`) — searchable directory of production companies. Similar pattern to CrewDirectory.
 
 #### Invitation Acceptance UI (Invitee Side)
 - [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
 - [ ] **Hook needed:** `useMyInvitations.ts` — fetch invitations where `invited_user_id = currentUser` or `invited_email = currentUser.email`, with accept/decline mutations calling the existing RPCs.
 
-#### Email Notifications
-- [ ] **Invitation email** — when someone is invited to a company, send them an email. Requires a Supabase Edge Function triggered on `company_invitations` INSERT (or called from the client after invite creation) using a transactional email service (Resend, Postmark, etc.).
-- [ ] **Message notification email** — when someone receives a new message and is offline. Requires a Supabase Edge Function.
-- [ ] **Both share infrastructure** — email service setup, templates, unsubscribe handling.
-
-### LOWER PRIORITY — Enhancement Layer
+### MEDIUM PRIORITY — Important but Not Blocking
 
 #### Job Editing & Management
 - [ ] **Edit job** — update title, description, fields. Toggle `is_active` to close/reopen a listing. Currently no edit UI exists for job posts.
 - [ ] **Job management view for company admins** — see all jobs across all productions with status, applicant counts, quick actions.
 
+#### Email Notifications
+- [ ] **Invitation email** — when someone is invited to a company, send them an email. Requires a Supabase Edge Function triggered on `company_invitations` INSERT (or called from the client after invite creation) using a transactional email service (Resend, Postmark, etc.).
+- [ ] **Message notification email** — when someone receives a new message and is offline. Requires a Supabase Edge Function.
+- [ ] **Application status change notification** — notify applicants when their status changes. Requires Edge Function infrastructure.
+- [ ] **All share infrastructure** — email service setup, templates, unsubscribe handling.
+
+#### Application Status Change Notifications (Client-side)
+- [ ] **Real-time updates for applicant status** — currently the applicant only sees their updated status when they visit `/applications` or the job detail page. Could add real-time subscription or poll on the MyApplications page.
+
 #### Production Enhancements
 - [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
+
+### LOWER PRIORITY — Enhancement Layer
+
+#### Server-side Job Filtering (Performance)
+- [ ] **Move production status/publish filtering server-side** — currently `useJobList` fetches all active jobs then filters client-side for production state before paginating. This works at current scale but should move to a Postgres view or function for production use. The client-side pagination after filtering means page counts can be inaccurate.
 
 #### Tier & Billing
 - [ ] Stripe checkout for company tier upgrades (free → pro → enterprise)
@@ -522,5 +560,9 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 16. **Job effective closure:** Jobs on wrapped/cancelled productions are treated as closed client-side via `isJobEffectivelyClosed()` but the `is_active` flag on the job itself is NOT changed. This is intentional — if the production is unwrapped, the jobs become active again automatically.
 17. **Job visibility depends on production state:** Both `is_published` and `status` on the production affect whether jobs are visible in the browse list. The `useJobList` hook filters client-side for both conditions. The job detail page still loads (RLS allows reading active jobs directly) but shows appropriate banners.
 18. **PostJob.tsx is dead code:** The old `/jobs/post` route and `PostJob.tsx` page have been replaced by `/productions/:slug/jobs/new` and `CreateJob.tsx`. The import has been removed from App.tsx. Delete the file.
-19. **Company link on ProductionDetail goes to dashboard:** Currently links to `/companies/:slug/dashboard` (auth-required). Should link to public profile `/companies/:slug` once that page is built.
-20. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. This avoids issues with shadcn Select not supporting empty string values.
+19. **Company link on ProductionDetail and JobDetail goes to dashboard:** Currently links to `/companies/:slug/dashboard` (auth-required). Should link to public profile `/companies/:slug` once that page is built.
+20. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. JobFilters uses `ALL = "__all__"` sentinel for the "all" option. Both avoid issues with shadcn Select not supporting empty string values.
+21. **Client-side job list pagination is approximate:** `useJobList` fetches all active jobs from Supabase, filters client-side for production status/publish state, then slices for pagination. This means the total count and page boundaries are accurate for the filtered set, but the initial fetch grows with total active jobs. At scale, this should be replaced with a server-side view or function.
+22. **Job application duplicate detection:** The unique constraint on `(job_id, applicant_id)` catches duplicates at the DB level. The `useApplyToJob` mutation detects the 23505 Postgres error code and shows a user-friendly "already applied" message. The UI also prevents this by checking `useMyApplication` before showing the form.
+23. **Job application RLS uses JOINs through 3 tables:** The company admin SELECT/UPDATE policies join `job_applications → job_posts → productions → production_company_members`. If this becomes slow at scale, create a `is_job_company_admin()` security definer helper function similar to `is_production_member()`.
+24. **Application status is a plain text field, not an enum:** The `status` column on `job_applications` is text, not a Postgres enum. Valid values are 'pending', 'reviewed', 'accepted', 'rejected' — enforced only at the application level. Consider adding a CHECK constraint or enum if needed.
