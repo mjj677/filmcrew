@@ -408,8 +408,8 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/productions/:slug` | No | ProductionDetail | ✅ |
 | `/productions/:slug/edit` | **Yes** | EditProduction | ✅ |
 | `/productions/:slug/jobs/new` | **Yes** | CreateJob | ✅ |
-| `/companies` | No | Browse companies | Not built |
-| `/companies/:slug` | No | Company public profile | Not built |
+| `/companies` | No | Browse companies | ✅ |
+| `/companies/:slug` | No | Company public profile | ✅ |
 
 ## Environment Variables
 
@@ -476,16 +476,16 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] **Applicant management for posters/admins** — JobApplicationsPanel on JobDetail with applicant list, avatar/name/position, cover message, status dropdown, toast feedback
 - [x] **useJobApplications hook** — useApplyToJob, useMyApplication, useMyApplications, useJobApplicants, useApplicantCounts, useUpdateApplicationStatus
 - [x] **RLS policies for job_applications** — migrated: applicant/poster/company-admin SELECT, applicant INSERT, poster/company-admin UPDATE, no DELETE
+- [x] **Browse companies page** (`/companies`) — searchable directory with member/production counts, URL-synced state, skeleton loading
+- [x] **Company public profile** (`/companies/:slug`) — public page with productions, active jobs, team roster, member-aware CTA buttons
+- [x] Fixed company links on ProductionDetail and JobDetail (were pointing to auth-required dashboard)
+- [x] RLS policy on `production_company_members` relaxed to allow public reads
 
 ## What Needs to Be Built Next
 
 ### HIGH PRIORITY — Completes the Core Loop
 
 The job application flow and jobs browse page are now complete. The remaining high-priority items are:
-
-#### Company Public Pages
-- [ ] **Public company profile page** (`/companies/:slug`) — public-facing page for non-members showing company info, published productions, open jobs. Currently the company link on ProductionDetail and JobDetail points to `/companies/:slug/dashboard` which requires auth. The public profile should be accessible without auth.
-- [ ] **Browse companies page** (`/companies`) — searchable directory of production companies. Similar pattern to CrewDirectory.
 
 #### Invitation Acceptance UI (Invitee Side)
 - [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
@@ -510,6 +510,8 @@ The job application flow and jobs browse page are now complete. The remaining hi
 - [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
 
 ### LOWER PRIORITY — Enhancement Layer
+
+- [ ] **Navbar link to `/companies`** — the browse directory is reachable via company links on production/job pages but not directly from the navbar
 
 #### Server-side Job Filtering (Performance)
 - [ ] **Move production status/publish filtering server-side** — currently `useJobList` fetches all active jobs then filters client-side for production state before paginating. This works at current scale but should move to a Postgres view or function for production use. The client-side pagination after filtering means page counts can be inaccurate.
@@ -560,9 +562,8 @@ The job application flow and jobs browse page are now complete. The remaining hi
 16. **Job effective closure:** Jobs on wrapped/cancelled productions are treated as closed client-side via `isJobEffectivelyClosed()` but the `is_active` flag on the job itself is NOT changed. This is intentional — if the production is unwrapped, the jobs become active again automatically.
 17. **Job visibility depends on production state:** Both `is_published` and `status` on the production affect whether jobs are visible in the browse list. The `useJobList` hook filters client-side for both conditions. The job detail page still loads (RLS allows reading active jobs directly) but shows appropriate banners.
 18. **PostJob.tsx is dead code:** The old `/jobs/post` route and `PostJob.tsx` page have been replaced by `/productions/:slug/jobs/new` and `CreateJob.tsx`. The import has been removed from App.tsx. Delete the file.
-19. **Company link on ProductionDetail and JobDetail goes to dashboard:** Currently links to `/companies/:slug/dashboard` (auth-required). Should link to public profile `/companies/:slug` once that page is built.
-20. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. JobFilters uses `ALL = "__all__"` sentinel for the "all" option. Both avoid issues with shadcn Select not supporting empty string values.
-21. **Client-side job list pagination is approximate:** `useJobList` fetches all active jobs from Supabase, filters client-side for production status/publish state, then slices for pagination. This means the total count and page boundaries are accurate for the filtered set, but the initial fetch grows with total active jobs. At scale, this should be replaced with a server-side view or function.
-22. **Job application duplicate detection:** The unique constraint on `(job_id, applicant_id)` catches duplicates at the DB level. The `useApplyToJob` mutation detects the 23505 Postgres error code and shows a user-friendly "already applied" message. The UI also prevents this by checking `useMyApplication` before showing the form.
-23. **Job application RLS uses JOINs through 3 tables:** The company admin SELECT/UPDATE policies join `job_applications → job_posts → productions → production_company_members`. If this becomes slow at scale, create a `is_job_company_admin()` security definer helper function similar to `is_production_member()`.
-24. **Application status is a plain text field, not an enum:** The `status` column on `job_applications` is text, not a Postgres enum. Valid values are 'pending', 'reviewed', 'accepted', 'rejected' — enforced only at the application level. Consider adding a CHECK constraint or enum if needed.
+19. **Select clearing pattern:** EditProductionForm and EditCompanyForm use a `NONE = "__none__"` sentinel value for clearable Select dropdowns, which maps to `null` on submit. JobFilters uses `ALL = "__all__"` sentinel for the "all" option. Both avoid issues with shadcn Select not supporting empty string values.
+20. **Client-side job list pagination is approximate:** `useJobList` fetches all active jobs from Supabase, filters client-side for production status/publish state, then slices for pagination. This means the total count and page boundaries are accurate for the filtered set, but the initial fetch grows with total active jobs. At scale, this should be replaced with a server-side view or function.
+21. **Job application duplicate detection:** The unique constraint on `(job_id, applicant_id)` catches duplicates at the DB level. The `useApplyToJob` mutation detects the 23505 Postgres error code and shows a user-friendly "already applied" message. The UI also prevents this by checking `useMyApplication` before showing the form.
+22. **Job application RLS uses JOINs through 3 tables:** The company admin SELECT/UPDATE policies join `job_applications → job_posts → productions → production_company_members`. If this becomes slow at scale, create a `is_job_company_admin()` security definer helper function similar to `is_production_member()`.
+23. **Application status is a plain text field, not an enum:** The `status` column on `job_applications` is text, not a Postgres enum. Valid values are 'pending', 'reviewed', 'accepted', 'rejected' — enforced only at the application level. Consider adding a CHECK constraint or enum if needed.
