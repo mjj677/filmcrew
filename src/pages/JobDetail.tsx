@@ -81,6 +81,9 @@ function JobDetail() {
     : "";
 
   const isOwnJob = !!user && job.posted_by === user.id;
+  const isCompanyAdmin =
+    job.companyRole === "owner" || job.companyRole === "admin";
+  const canManageApplicants = isOwnJob || isCompanyAdmin;
 
   return (
     <>
@@ -160,8 +163,10 @@ function JobDetail() {
                 <Badge variant="secondary" className="bg-amber-100 text-amber-800">
                   Deadline passed
                 </Badge>
-              ) : isOwnJob ? (
-                <Badge variant="secondary">Your listing</Badge>
+              ) : canManageApplicants ? (
+                <Badge variant="secondary">
+                  {isOwnJob ? "Your listing" : "Team listing"}
+                </Badge>
               ) : (
                 <Button size="lg" asChild>
                   <a href="#apply">Apply now</a>
@@ -281,12 +286,12 @@ function JobDetail() {
             deadline={job.deadline}
             productionInactive={productionInactive}
             productionStatusLabel={productionStatusLabel}
-            isOwnJob={isOwnJob}
+            canManage={canManageApplicants}
           />
         </section>
 
-        {/* ── Applicants panel (poster only) ─────────────── */}
-        {isOwnJob && (
+        {/* ── Applicants panel (poster + company admins) ── */}
+        {canManageApplicants && (
           <>
             <Separator />
             <JobApplicationsPanel jobId={job.id} />

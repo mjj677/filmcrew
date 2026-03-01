@@ -14,6 +14,8 @@ export const applicationKeys = {
     [...applicationKeys.all, "mine", jobId, userId] as const,
   myAll: (userId: string) =>
     [...applicationKeys.all, "my-all", userId] as const,
+  counts: (jobIds: string[]) =>
+    [...applicationKeys.all, "counts", ...jobIds.sort()] as const,
 };
 
 // ── Types ─────────────────────────────────────────────────
@@ -61,6 +63,57 @@ async function fetchMyApplication(
   return data as JobApplication | null;
 }
 
+async function fetchMyApplications(
+  userId: string,
+): Promise<MyApplicationWithJob[]> {
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select(
+      `
+      *,
+      job:job_posts!job_applications_job_id_fkey (
+        id, title, is_active,
+        production:productions!job_posts_production_id_fkey (
+          id, title, slug,
+          company:production_companies!inner (
+            id, name, slug, logo_url
+          )
+        )
+      )
+    `,
+    )
+    .eq("applicant_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const rawJob = row.job as any;
+    const rawProd = rawJob?.production;
+    const rawCompany = rawProd?.company ?? null;
+
+    return {
+      ...row,
+      job: {
+        id: rawJob.id,
+        title: rawJob.title,
+        is_active: rawJob.is_active,
+        production: rawProd
+          ? { id: rawProd.id, title: rawProd.title, slug: rawProd.slug }
+          : null,
+        company: rawCompany
+          ? {
+              id: rawCompany.id,
+              name: rawCompany.name,
+              slug: rawCompany.slug,
+              logo_url: rawCompany.logo_url,
+            }
+          : null,
+      },
+    } as MyApplicationWithJob;
+  });
+}
+
 async function fetchJobApplicants(
   jobId: string,
 ): Promise<ApplicationWithApplicant[]> {
@@ -85,6 +138,25 @@ async function fetchJobApplicants(
   })) as ApplicationWithApplicant[];
 }
 
+async function fetchApplicantCounts(
+  jobIds: string[],
+): Promise<Record<string, number>> {
+  if (jobIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select("job_id")
+    .in("job_id", jobIds);
+
+  if (error) throw new Error(error.message);
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.job_id] = (counts[row.job_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 // ── Hooks ─────────────────────────────────────────────────
 
 /**
@@ -98,6 +170,43 @@ export function useMyApplication(jobId: string | undefined) {
     queryKey: applicationKeys.myApplication(jobId ?? "", user?.id ?? ""),
     queryFn: () => fetchMyApplication(jobId!, user!.id),
     enabled: !!jobId && !!user?.id,
+  });
+}
+
+/**
+ * Fetch all of the current user's job applications, including
+ * the job title, production, and company context.
+ */
+export function useMyApplications() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: applicationKeys.myAll(user?.id ?? ""),
+    queryFn: () => fetchMyApplications(user!.id),
+    enabled: !!user?.id,
+  });
+}
+
+/**
+ * Fetch all applicants for a specific job. Intended for job posters / company admins.
+ */
+export function useJobApplicants(jobId: string | undefined) {
+  return useQuery({
+    queryKey: applicationKeys.forJob(jobId ?? ""),
+    queryFn: () => fetchJobApplicants(jobId!),
+    enabled: !!jobId,
+  });
+}
+
+/**
+ * Fetch applicant counts for a set of job IDs.
+ * Used by ProductionDetail to show badge counts on job rows.
+ */
+export function useApplicantCounts(jobIds: string[]) {
+  return useQuery({
+    queryKey: applicationKeys.counts(jobIds),
+    queryFn: () => fetchApplicantCounts(jobIds),
+    enabled: jobIds.length > 0,
   });
 }
 
@@ -130,7 +239,6 @@ export function useApplyToJob() {
         .single();
 
       if (error) {
-        // Unique constraint violation = already applied
         if (error.code === "23505") {
           throw new Error("You have already applied to this job.");
         }
@@ -146,6 +254,13 @@ export function useApplyToJob() {
       queryClient.invalidateQueries({
         queryKey: applicationKeys.forJob(data.job_id),
       });
+      queryClient.invalidateQueries({
+        queryKey: applicationKeys.myAll(user!.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...applicationKeys.all, "counts"],
+        exact: false,
+      });
       toast.success("Application submitted", {
         description: "Your application has been sent to the hiring team.",
       });
@@ -153,17 +268,6 @@ export function useApplyToJob() {
     onError: (error: Error) => {
       toast.error("Failed to apply", { description: error.message });
     },
-  });
-}
-
-/**
- * Fetch all applicants for a specific job. Intended for job posters / company admins.
- */
-export function useJobApplicants(jobId: string | undefined) {
-  return useQuery({
-    queryKey: applicationKeys.forJob(jobId ?? ""),
-    queryFn: () => fetchJobApplicants(jobId!),
-    enabled: !!jobId,
   });
 }
 

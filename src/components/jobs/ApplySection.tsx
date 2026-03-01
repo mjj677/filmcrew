@@ -26,8 +26,8 @@ type ApplySectionProps = {
   deadline: string | null;
   productionInactive: boolean;
   productionStatusLabel: string;
-  /** Is the current user the poster of this job? */
-  isOwnJob: boolean;
+  /** Whether the current user can manage this job (poster or company admin) */
+  canManage: boolean;
 };
 
 // ── Status labels ─────────────────────────────────────────
@@ -48,7 +48,7 @@ export function ApplySection({
   deadline,
   productionInactive,
   productionStatusLabel,
-  isOwnJob,
+  canManage,
 }: ApplySectionProps) {
   const { user } = useAuth();
   const { data: myApplication, isLoading: checkingApplication } =
@@ -98,15 +98,15 @@ export function ApplySection({
     );
   }
 
-  // ── Own job ───────────────────────────────────────────
+  // ── Manager view ──────────────────────────────────────
 
-  if (isOwnJob) {
+  if (canManage) {
     return (
       <div className="rounded-lg border border-dashed px-4 py-8 text-center">
         <BriefcaseIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-        <p className="mt-2 font-medium">This is your job listing</p>
+        <p className="mt-2 font-medium">You're managing this listing</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          You can view applicants below.
+          View and manage applicants below.
         </p>
       </div>
     );
@@ -212,7 +212,7 @@ export function ApplySection({
           <Button
             onClick={handleSubmit}
             disabled={!coverMessage.trim() || applyMutation.isPending}
-            className="gap-2 cursor-pointer"
+            className="gap-2"
           >
             {applyMutation.isPending ? (
               <SpinnerIcon className="h-4 w-4 animate-spin" />

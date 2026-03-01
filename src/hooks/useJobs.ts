@@ -21,6 +21,8 @@ export type JobWithContext = JobPost & {
   production: Pick<Production, "id" | "title" | "slug" | "status" | "is_published"> | null;
   company: Pick<ProductionCompany, "id" | "name" | "slug" | "logo_url"> | null;
   poster: Pick<Profile, "id" | "display_name" | "username" | "profile_image_url"> | null;
+  /** Current user's role in the parent company (null if not a member or not authenticated) */
+  companyRole: "owner" | "admin" | "member" | null;
 };
 
 /** Whether a job should be treated as effectively closed based on its production's status. */
@@ -50,7 +52,7 @@ export const JOB_PAGE_SIZE = 12;
 
 // ── Fetchers ──────────────────────────────────────────────
 
-async function fetchJobDetail(jobId: string): Promise<JobWithContext> {
+async function fetchJobDetail(jobId: string, userId: string | undefined): Promise<JobWithContext> {
   const { data, error } = await supabase
     .from("job_posts")
     .select(
@@ -94,10 +96,24 @@ async function fetchJobDetail(jobId: string): Promise<JobWithContext> {
     }
   }
 
+  // Determine the current user's role in the parent company
+  let companyRole: JobWithContext["companyRole"] = null;
+  if (userId && company) {
+    const { data: membership } = await supabase
+      .from("production_company_members")
+      .select("role")
+      .eq("company_id", company.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    companyRole = (membership?.role as JobWithContext["companyRole"]) ?? null;
+  }
+
   return {
     ...data,
     production,
     company,
+    companyRole,
     poster: data.poster as JobWithContext["poster"],
   } as JobWithContext;
 }
@@ -175,6 +191,7 @@ async function fetchJobList(
           ? { id: company.id, name: company.name, slug: company.slug, logo_url: company.logo_url }
           : null,
         poster: row.poster as JobWithContext["poster"],
+        companyRole: null,
       } as JobWithContext;
     });
 
@@ -190,9 +207,11 @@ async function fetchJobList(
 // ── Hooks ─────────────────────────────────────────────────
 
 export function useJobDetail(jobId: string | undefined) {
+  const { user } = useAuth();
+
   return useQuery({
     queryKey: jobKeys.detail(jobId ?? ""),
-    queryFn: () => fetchJobDetail(jobId!),
+    queryFn: () => fetchJobDetail(jobId!, user?.id),
     enabled: !!jobId,
   });
 }
