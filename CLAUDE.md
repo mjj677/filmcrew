@@ -476,16 +476,16 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] **Applicant management for posters/admins** — JobApplicationsPanel on JobDetail with applicant list, avatar/name/position, cover message, status dropdown, toast feedback
 - [x] **useJobApplications hook** — useApplyToJob, useMyApplication, useMyApplications, useJobApplicants, useApplicantCounts, useUpdateApplicationStatus
 - [x] **RLS policies for job_applications** — migrated: applicant/poster/company-admin SELECT, applicant INSERT, poster/company-admin UPDATE, no DELETE
+- [x] **Browse companies page** (`/companies`) — searchable directory with member/production counts, URL-synced state, skeleton loading
+- [x] **Company public profile** (`/companies/:slug`) — public page with productions, active jobs, team roster, member-aware CTA buttons
+- [x] Fixed company links on ProductionDetail and JobDetail (were pointing to auth-required dashboard)
+- [x] RLS policy on `production_company_members` relaxed to allow public reads
 
 ## What Needs to Be Built Next
 
 ### HIGH PRIORITY — Completes the Core Loop
 
 The job application flow and jobs browse page are now complete. The remaining high-priority items are:
-
-#### Company Public Pages
-- [ ] **Public company profile page** (`/companies/:slug`) — public-facing page for non-members showing company info, published productions, open jobs. Currently the company link on ProductionDetail and JobDetail points to `/companies/:slug/dashboard` which requires auth. The public profile should be accessible without auth.
-- [ ] **Browse companies page** (`/companies`) — searchable directory of production companies. Similar pattern to CrewDirectory.
 
 #### Invitation Acceptance UI (Invitee Side)
 - [ ] **"My Invitations" section** — currently invitations are created and visible to company admins, but there's no UI for the invitee to see and accept/decline invitations they've received. The RPCs exist (`accept_company_invitation`, `decline_company_invitation`). Needs either a dedicated page or a section in the user's profile/inbox showing pending invitations with accept/decline buttons.
@@ -510,6 +510,8 @@ The job application flow and jobs browse page are now complete. The remaining hi
 - [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
 
 ### LOWER PRIORITY — Enhancement Layer
+
+- [ ] **Navbar link to `/companies`** — the browse directory is reachable via company links on production/job pages but not directly from the navbar
 
 #### Server-side Job Filtering (Performance)
 - [ ] **Move production status/publish filtering server-side** — currently `useJobList` fetches all active jobs then filters client-side for production state before paginating. This works at current scale but should move to a Postgres view or function for production use. The client-side pagination after filtering means page counts can be inaccurate.
