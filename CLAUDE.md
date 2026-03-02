@@ -68,6 +68,7 @@ src/
 │   │   ├── JobFilters.tsx            # Search + category/type/experience/remote filters
 │   │   ├── JobGrid.tsx               # Responsive grid with empty state
 │   │   ├── JobPagination.tsx         # Previous/next pagination
+│   │   ├── EditJobForm.tsx           # Pre-filled edit form
 │   │   └── JobSkeleton.tsx           # Loading skeleton for job grid
 │   └── company/
 │       ├── CreateCompanyForm.tsx      # Company creation form with slug auto-gen + availability check
@@ -97,8 +98,8 @@ src/
 │   ├── useCompanyDetail.ts           # Fetches company + members (with profiles) + productions + current user role
 │   ├── useInvitations.ts             # useCompanyInvitations, useSendInvitation, useRevokeInvitation
 │   ├── useProductions.ts             # useCreateProduction, useUpdateProduction, useTogglePublish, useChangeProductionStatus, generateProductionSlug, checkProductionSlugAvailability
-│   ├── useProductionDetail.ts        # Fetches production + parent company + jobs + current user role
-│   ├── useJobs.ts                    # useCreateJob, useJobDetail, useJobList (with pagination + filters), isJobEffectivelyClosed, JobWithContext, jobKeys
+│   ├── useProductionDetail.ts        # Fetches production + parent company + jobs + current user role (now returns activeJobs / inactive jobs instead of jobs)
+│   ├── useJobs.ts                    # useCreateJob, useJobDetail, useJobList (with pagination + filters), isJobEffectivelyClosed, JobWithContext, jobKeys, useUpdateJob, useToggleJobActive
 │   ├── useJobApplications.ts         # useApplyToJob, useMyApplication, useMyApplications, useJobApplicants, useApplicantCounts, useUpdateApplicationStatus
 │   └── useJobDirectory.ts            # URL-synced filter + pagination state for /jobs (like useCrewDirectory)
 ├── lib/
@@ -123,6 +124,7 @@ src/
 │   ├── ProductionDetail.tsx           # Public production page with meta cards, job listings (with applicant count badges for admins), draft banner
 │   ├── EditProduction.tsx             # Thin shell → EditProductionForm
 │   ├── CreateJob.tsx                  # Permission + status check → CreateJobForm
+│   ├── EditJob.tsx                    # Thin shell - EditJobForm
 │   └── JobDetail.tsx                  # Full job listing with apply section, applicant panel for managers, production/company context
 └── types/
     ├── database.ts                    # AUTO-GENERATED — run `pnpm gen-types`
@@ -248,6 +250,8 @@ DELETED:
 - Invitation changes invalidate company invitations query
 - Job application submit (`useApplyToJob`) invalidates: myApplication for that job, forJob applicants, myAll applications, and all application counts
 - Application status update (`useUpdateApplicationStatus`) invalidates: forJob applicants
+- `useUpdateJob` invalidates job detail + all job list queries
+- `useToggleJobActive` invalidates job detail + all job list queries
 
 ## Database Schema
 
@@ -379,7 +383,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 - **Conversations:** Participants can read, any authenticated user can create
 - **Conversation participants:** Participants can view co-participants, authenticated users can add
 - **Messages:** Participants can read/send/update (mark read)
-- **Job posts:** Public read (active only), poster can create/update/delete (+ tier limit trigger + production status trigger)
+- **Job posts:** Public read (active only), company admins can read inactive jobs for their own productions, poster can create/update/delete...
 - **Job applications:** Applicant reads own | poster reads for their jobs | company admin/owner reads for company jobs | applicant inserts (self only) | poster and company admin/owner can update status | no deletes
 - **Audit log:** Company members can read, no client writes (triggers only)
 - **Reserved slugs:** Public read, no client writes (migrations only)
@@ -394,6 +398,7 @@ These bypass RLS and are used inside RLS policies to prevent circular dependenci
 | `/crew/:username` | No | CrewProfile | ✅ |
 | `/jobs` | No | Jobs | ✅ |
 | `/jobs/:id` | No | JobDetail | ✅ |
+| `/jobs/:id/edit` | Yes | EditJob | ✅ |
 | `/auth` | No | Auth (sign in) | ✅ |
 | `/auth/callback` | No | AuthCallback | ✅ |
 | `/inbox` | **Yes** | Inbox | ✅ |
@@ -484,23 +489,64 @@ SUPABASE_ACCESS_TOKEN=your-personal-access-token (for CLI only, not in browser)
 - [x] **Company settings tab deep-linking** — `?tab=team|invitations|details|danger` URL param controls the initial tab on mount. "Manage team" on the dashboard links directly to `?tab=team`. Guard rejects param values the current role doesn't have access to.
 - [x] **Owner-only Details tab** — company Details tab (name, description, location, website) is now hidden from admins entirely. Admins land on Team by default. RLS `production_companies` UPDATE policy tightened to owner only.
 - [x] **Invitations refresh button** — manual refresh icon button added to the Invitations tab header, compensating for the absence of a real-time subscription on this low-frequency data.
+- [x] Job editing (`/jobs/:id/edit`) with `EditJobForm`, dirty tracking, all fields editable
+- [x] Close/reopen toggle on `EditJobForm` with immediate cache invalidation
+- [x] Edit button on `JobDetail` visible to poster and company admins
+- [x] Unlisted jobs tab on `ProductionDetail` — admin/owner-only, only appears when inactive jobs exist
+- [x] `useUpdateJob` and `useToggleJobActive` mutations in `useJobs.ts`
+- [x] RLS policy: company admins can read inactive `job_posts` for their productions via `is_production_admin()`
+- [x] `useProductionDetail` now returns `activeJobs` / `inactiveJobs` split
 
 ## What Needs to Be Built Next
 
 ### MEDIUM PRIORITY — Important but Not Blocking
 
-#### Job Editing & Management ← START HERE
+#### Production Enhancements - START HERE
+- [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
 
-This is the most impactful remaining gap in the core loop. Job posters currently have no way to update a listing after it's published, or to close/reopen it without deleting it.
+#### Credits / CV Section on Crew Profiles
 
-- [ ] **`EditJobForm` component** — pre-filled form with all fields from `CreateJobForm` (title, description, category, type, experience level, location, remote, compensation, deadline). Follows the same dirty-tracking pattern as `EditCompanyForm` and `EditProductionForm`. Slug not applicable — jobs use UUID-based routes.
-- [ ] **`EditJob` page** (`/jobs/:id/edit`) — thin shell wrapping `EditJobForm`, permission-gated to the job poster and company admins/owners (same `canManageApplicants` logic already on `JobDetail`).
-- [ ] **`useUpdateJob` mutation** in `useJobs.ts` — updates `job_posts` row, invalidates `jobKeys.detail(id)` and `jobKeys.list(...)`.
-- [ ] **Close/reopen toggle** — `is_active` toggle on the edit page (or directly on `JobDetail` for admins as a quick action button). Closing a job removes it from the browse list immediately due to the existing `is_active` filter. Cache invalidation: `jobKeys.detail` + all job list queries.
-- [ ] **Edit button on `JobDetail`** — visible to poster and company admins, links to `/jobs/:id/edit`. Same placement as the Edit button on `ProductionDetail`.
-- [ ] **Route**: add `/jobs/:id/edit` to `App.tsx` as a `ProtectedRoute`.
+Film industry professionals list work history as **credits**, not a CV — the schema and UI should reflect that terminology.
 
-**RLS note:** The existing `job_posts` UPDATE policy allows the poster to update their own jobs. Company admins/owners can also update via the existing policy. No migration needed.
+**Schema** — new `work_experience` table:
+- `id` (uuid PK)
+- `profile_id` (FK → profiles, ON DELETE CASCADE)
+- `production_title` (text) — name of the production
+- `role` (text) — their specific credit on it (e.g. "Director of Photography")
+- `production_type` (text — mirrors `production_type` enum values: feature_film, short_film, etc.)
+- `year` (integer)
+- `director` (text, nullable)
+- `company` (text, nullable) — free text, not a FK to `production_companies`
+- `is_featured` (boolean, default false) — lets users pin up to 3 credits to the top
+- `sort_order` (integer, nullable) — for manual reordering within featured/non-featured groups
+- RLS: public read, owner insert/update/delete
+
+**CrewProfile page** — new "Credits" section below bio/skills. Renders as a clean table (year | role | production | type | director | company), sorted by year descending with featured credits pinned at the top with a subtle star indicator. Empty state shown to visitors; profile owners see a prompt to add credits from their own profile editor.
+
+**Profile editor** — new Credits section: add/edit/remove credits with an inline form. Toggle `is_featured` per credit (capped at 3 featured). This is the most UI-heavy part of the feature.
+
+**JobApplicationsPanel integration** — this is the primary value driver. When an admin scans applicants they need credits without navigating away. Clicking an applicant row opens a shadcn `Sheet` (slide-over) showing a profile snapshot: avatar, position, skills chips, and the full credits table. "View full profile →" link at the bottom navigates to `/crew/:username`. No changes to the panel's list view.
+
+**ProfileCard / CrewCard** — no credits shown. Cards are already information-dense and link to the full profile anyway.
+
+---
+
+#### Veteran Badge + Experience Years Cleanup
+
+The raw `experience_years` number is not meaningful to someone scanning crew cards or applicants — replace it with a single high-signal badge for the most experienced members.
+
+**Schema** — no changes. `experience_years` stays in the database and profile editor; it drives the badge.
+
+**Badge rule** — if `experience_years >= 5`, render a gold `Veteran` badge (`StarIcon` prefix, amber/yellow Badge variant) wherever the person's name or position appears. If `experience_years < 5` or null, render nothing.
+
+**UI changes:**
+- `CrewCard` — remove the experience years line; add `Veteran` badge next to the name if applicable
+- `CrewProfile` header — remove experience years from the meta row; add `Veteran` badge next to display name if applicable
+- `JobApplicationsPanel` applicant rows — remove experience years; add `Veteran` badge next to the applicant name if applicable
+- `ConnectionCard` — add `Veteran` badge next to name if applicable
+- Profile editor — keep the `experience_years` selector as-is; add a small preview note explaining the badge threshold
+
+**Note:** The `Veteran` badge should use a consistent component — create a small `VeteranBadge` component in `components/ui/` or `components/profile/` so the styling is defined once and imported wherever needed.
 
 #### Email Notifications
 - [ ] **Invitation email** — when someone is invited to a company, send them an email. Requires a Supabase Edge Function triggered on `company_invitations` INSERT (or called from the client after invite creation) using a transactional email service (Resend, Postmark, etc.).
@@ -510,9 +556,6 @@ This is the most impactful remaining gap in the core loop. Job posters currently
 
 #### Application Status Change Notifications (Client-side)
 - [ ] **Real-time updates for applicant status** — currently the applicant only sees their updated status when they visit `/applications` or the job detail page. Could add real-time subscription or poll on the MyApplications page.
-
-#### Production Enhancements
-- [ ] **Production poster image** — `poster_url` column exists but no upload UI. Add image upload on EditProductionForm (same pattern as ProfileImageUpload).
 
 #### Invitation Acceptance UI — Upgrade Path
 
