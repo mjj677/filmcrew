@@ -11,6 +11,7 @@ import {
   CalendarIcon,
   BuildingsIcon,
   WarningCircleIcon,
+  PencilSimpleIcon
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,26 +154,39 @@ function JobDetail() {
               </div>
             </div>
 
-            {/* Apply CTA */}
-            <div className="shrink-0">
-              {effectivelyClosed ? (
-                <Badge variant="secondary" className="bg-stone-100 text-stone-600">
-                  Closed
-                </Badge>
-              ) : isPastDeadline ? (
-                <Badge variant="secondary" className="bg-amber-100 text-amber-800">
-                  Deadline passed
-                </Badge>
-              ) : canManageApplicants ? (
-                <Badge variant="secondary">
-                  {isOwnJob ? "Your listing" : "Team listing"}
-                </Badge>
-              ) : (
-                <Button size="lg" asChild>
-                  <a href="#apply">Apply now</a>
-                </Button>
-              )}
-            </div>
+            {/* Apply CTA + Edit button */}
+            <div className="flex shrink-0 items-center gap-2">
+                {canManageApplicants && (
+                    <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer"
+                    >
+                    <Link to={`/jobs/${job.id}/edit`}>
+                        <PencilSimpleIcon className="mr-1.5 h-4 w-4" />
+                        Edit
+                    </Link>
+                    </Button>
+                )}
+                {effectivelyClosed ? (
+                    <Badge variant="secondary" className="bg-stone-100 text-stone-600">
+                    Closed
+                    </Badge>
+                ) : isPastDeadline ? (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                    Deadline passed
+                    </Badge>
+                ) : canManageApplicants ? (
+                    <Badge variant="secondary">
+                    {isOwnJob ? "Your listing" : "Team listing"}
+                    </Badge>
+                ) : (
+                    <Button size="lg" asChild>
+                    <a href="#apply">Apply now</a>
+                    </Button>
+                )}
+                </div>
           </div>
 
           {/* ── Meta badges ────────────────────────────── */}

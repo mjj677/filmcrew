@@ -17,7 +17,10 @@ export type ProductionDetail = {
     ProductionCompany,
     "id" | "name" | "slug" | "logo_url" | "city" | "country"
   >;
-  jobs: JobPost[];
+  /** Active (is_active = true) job listings — visible to everyone */
+  activeJobs: JobPost[];
+  /** Inactive (is_active = false) job listings — only returned for company admins/owners via RLS */
+  inactiveJobs: JobPost[];
   /** Current user's role in the parent company, null if not a member */
   role: CompanyRole | null;
 };
@@ -26,7 +29,7 @@ export type ProductionDetail = {
 
 async function fetchProductionBySlug(
   slug: string,
-  userId: string | undefined
+  userId: string | undefined,
 ): Promise<ProductionDetail> {
   // 1. Fetch production with parent company info
   const { data: production, error: prodErr } = await supabase
@@ -42,30 +45,32 @@ async function fetchProductionBySlug(
         city,
         country
       )
-    `
+    `,
     )
     .eq("slug", slug)
     .is("deleted_at", null)
     .single();
 
   if (prodErr) {
-    if (prodErr.code === "PGRST116") {
-      throw new Error("Production not found");
-    }
+    if (prodErr.code === "PGRST116") throw new Error("Production not found");
     throw new Error(prodErr.message);
   }
 
   const company = production.company as ProductionDetail["company"];
 
-  // 2. Fetch job listings under this production
+  // 2. Fetch ALL job listings for this production — no is_active filter.
+  //    RLS enforces what the caller can see:
+  //    - Public / non-members: only is_active = true rows (existing public policy)
+  //    - Company admins/owners: all rows (new admin policy)
   const { data: jobs, error: jobsErr } = await supabase
     .from("job_posts")
     .select("*")
     .eq("production_id", production.id)
-    .eq("is_active", true)
     .order("created_at", { ascending: false });
 
   if (jobsErr) throw new Error(jobsErr.message);
+
+  const allJobs = (jobs ?? []) as JobPost[];
 
   // 3. Determine current user's role (if authenticated)
   let role: CompanyRole | null = null;
@@ -87,7 +92,8 @@ async function fetchProductionBySlug(
   return {
     production: prodData as Production,
     company,
-    jobs: (jobs ?? []) as JobPost[],
+    activeJobs: allJobs.filter((j) => j.is_active),
+    inactiveJobs: allJobs.filter((j) => !j.is_active),
     role,
   };
 }
@@ -95,8 +101,12 @@ async function fetchProductionBySlug(
 // ── Hook ──────────────────────────────────────────────────
 
 /**
- * Fetches a production by slug, including its parent company,
- * active job listings, and the current user's role in the company.
+ * Fetches a production by slug, including its parent company, all job
+ * listings split into activeJobs / inactiveJobs, and the current user's
+ * role in the company.
+ *
+ * Inactive jobs are only returned for company admins/owners — RLS silently
+ * excludes them for public/non-member callers, so the split is safe.
  */
 export function useProductionDetail(slug: string | undefined) {
   const { user } = useAuth();

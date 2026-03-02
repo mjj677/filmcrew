@@ -21,37 +21,39 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useProductionDetail } from "@/hooks/useProductionDetail";
 import { useTogglePublish } from "@/hooks/useProductions";
 import { useApplicantCounts } from "@/hooks/useJobApplications";
+import { cn } from "@/lib/utils";
 import type { JobPost } from "@/types/models";
 
 // ── Config maps ───────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   pre_production: { label: "Pre-production", className: "bg-yellow-100 text-yellow-800" },
-  in_production: { label: "In production", className: "bg-green-100 text-green-800" },
-  post_production: { label: "Post-production", className: "bg-blue-100 text-blue-800" },
-  wrapped: { label: "Wrapped", className: "bg-stone-100 text-stone-700" },
-  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-700" },
+  in_production:  { label: "In production",  className: "bg-green-100 text-green-800"  },
+  post_production:{ label: "Post-production", className: "bg-blue-100 text-blue-800"   },
+  wrapped:        { label: "Wrapped",         className: "bg-stone-100 text-stone-700" },
+  cancelled:      { label: "Cancelled",       className: "bg-red-100 text-red-700"     },
 };
 
 const TYPE_LABELS: Record<string, string> = {
   feature_film: "Feature Film",
-  short_film: "Short Film",
-  commercial: "Commercial",
-  music_video: "Music Video",
-  series: "Series",
-  documentary: "Documentary",
-  corporate: "Corporate",
-  other: "Other",
+  short_film:   "Short Film",
+  commercial:   "Commercial",
+  music_video:  "Music Video",
+  series:       "Series",
+  documentary:  "Documentary",
+  corporate:    "Corporate",
+  other:        "Other",
 };
 
 const BUDGET_LABELS: Record<string, string> = {
   micro: "Micro budget",
-  low: "Low budget",
-  mid: "Mid budget",
-  high: "High budget",
+  low:   "Low budget",
+  mid:   "Mid budget",
+  high:  "High budget",
 };
 
 // ── Page ──────────────────────────────────────────────────
@@ -61,11 +63,16 @@ function ProductionDetail() {
   const { data, isLoading, error } = useProductionDetail(slug);
   const togglePublish = useTogglePublish();
 
-  // Fetch applicant counts for all jobs (only when data is loaded and user is admin)
   const isAdmin = data?.role === "owner" || data?.role === "admin";
-  const jobIds = (data?.jobs ?? []).map((j) => j.id);
+
+  // Union both job lists so admin applicant counts cover unlisted jobs too
+  const allJobIds = [
+    ...(data?.activeJobs ?? []),
+    ...(data?.inactiveJobs ?? []),
+  ].map((j) => j.id);
+
   const { data: applicantCounts } = useApplicantCounts(
-    isAdmin ? jobIds : [],
+    isAdmin ? allJobIds : [],
   );
 
   if (isLoading) return <ProductionSkeleton />;
@@ -85,9 +92,10 @@ function ProductionDetail() {
     );
   }
 
-  const { production, company, jobs } = data;
+  const { production, company, activeJobs, inactiveJobs } = data;
   const status = STATUS_CONFIG[production.status] ?? STATUS_CONFIG.pre_production;
   const isActive = !["wrapped", "cancelled"].includes(production.status);
+  const showTabs = isAdmin && inactiveJobs.length > 0;
 
   function handleTogglePublish() {
     togglePublish.mutate({
@@ -118,7 +126,7 @@ function ProductionDetail() {
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0 border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer"
+              className="shrink-0 cursor-pointer border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200"
               onClick={handleTogglePublish}
               disabled={togglePublish.isPending}
             >
@@ -146,7 +154,7 @@ function ProductionDetail() {
 
             {/* Company link */}
             <Link
-              to={`/companies/${company.slug}`}
+              to={`/companies/${company.slug}/dashboard`}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <Avatar className="h-6 w-6 rounded">
@@ -159,7 +167,7 @@ function ProductionDetail() {
             </Link>
 
             {production.description && (
-              <p className="max-w-2xl text-sm text-muted-foreground leading-relaxed">
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 {production.description}
               </p>
             )}
@@ -178,7 +186,7 @@ function ProductionDetail() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 cursor-pointer"
+                  className="cursor-pointer gap-1.5"
                   onClick={handleTogglePublish}
                   disabled={togglePublish.isPending}
                 >
@@ -188,14 +196,6 @@ function ProductionDetail() {
                     <EyeSlashIcon className="h-4 w-4" />
                   )}
                   Unpublish
-                </Button>
-              )}
-              {isActive && (
-                <Button asChild size="sm">
-                  <Link to={`/productions/${production.slug}/jobs/new`}>
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    Post a job
-                  </Link>
                 </Button>
               )}
             </div>
@@ -243,46 +243,101 @@ function ProductionDetail() {
               <BriefcaseIcon className="h-5 w-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">
                 Open positions{" "}
-                {jobs.length > 0 && (
+                {activeJobs.length > 0 && (
                   <span className="font-normal text-muted-foreground">
-                    ({jobs.length})
+                    ({activeJobs.length})
                   </span>
                 )}
               </h2>
             </div>
+            {/* Post a job button also lives here for admins without unlisted jobs */}
+            {isAdmin && isActive && !showTabs && (
+              <Button asChild size="sm">
+                <Link to={`/productions/${production.slug}/jobs/new`}>
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  Post a job
+                </Link>
+              </Button>
+            )}
           </div>
 
-          {jobs.length === 0 ? (
-            <div className="flex flex-col items-center rounded-lg border border-dashed py-10 text-center">
-              <BriefcaseIcon className="h-10 w-10 text-muted-foreground/50" />
-              <p className="mt-3 font-medium">No open positions</p>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {isAdmin && isActive
-                  ? "Post your first job listing to start finding crew."
-                  : isAdmin && !isActive
-                    ? "This production is no longer active."
-                    : "Check back later — new roles may be posted soon."}
-              </p>
-              {isAdmin && isActive && (
-                <Button asChild size="sm" className="mt-4">
-                  <Link to={`/productions/${production.slug}/jobs/new`}>
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    Post a job
-                  </Link>
-                </Button>
-              )}
-            </div>
+          {showTabs ? (
+            <Tabs defaultValue="open">
+              <div className="flex items-center justify-between gap-4">
+                <TabsList>
+                  <TabsTrigger value="open" className="cursor-pointer">
+                    Open
+                    {activeJobs.length > 0 && (
+                      <span className="ml-1.5 rounded-full bg-background px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                        {activeJobs.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="unlisted" className="cursor-pointer">
+                    Unlisted
+                    <span className="ml-1.5 rounded-full bg-background px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                      {inactiveJobs.length}
+                    </span>
+                  </TabsTrigger>
+                </TabsList>
+
+                {isActive && (
+                  <Button asChild size="sm">
+                    <Link to={`/productions/${production.slug}/jobs/new`}>
+                      <PlusIcon className="mr-2 h-4 w-4" />
+                      Post a job
+                    </Link>
+                  </Button>
+                )}
+              </div>
+
+              <TabsContent value="open" className="mt-4">
+                {activeJobs.length === 0 ? (
+                  <EmptyPositions isAdmin={isAdmin} isActive={isActive} />
+                ) : (
+                  <div className="space-y-3">
+                    {activeJobs.map((job) => (
+                      <JobRow
+                        key={job.id}
+                        job={job}
+                        applicantCount={applicantCounts?.[job.id]}
+                        isAdmin={isAdmin}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="unlisted" className="mt-4 space-y-3">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <EyeSlashIcon className="h-3.5 w-3.5 shrink-0" />
+                  These listings are hidden from the public and the jobs board.
+                </p>
+                {inactiveJobs.map((job) => (
+                  <JobRow
+                    key={job.id}
+                    job={job}
+                    applicantCount={applicantCounts?.[job.id]}
+                    isAdmin={isAdmin}
+                    unlisted
+                  />
+                ))}
+              </TabsContent>
+            </Tabs>
           ) : (
             <div className="space-y-3">
-              {jobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  applicantCount={
-                    isAdmin ? applicantCounts?.[job.id] ?? 0 : undefined
-                  }
-                />
-              ))}
+              {activeJobs.length === 0 ? (
+                <EmptyPositions isAdmin={isAdmin} isActive={isActive} />
+              ) : (
+                activeJobs.map((job) => (
+                  <JobRow
+                    key={job.id}
+                    job={job}
+                    applicantCount={applicantCounts?.[job.id]}
+                    isAdmin={isAdmin}
+                  />
+                ))
+              )}
             </div>
           )}
         </section>
@@ -316,20 +371,27 @@ function MetaCard({
 function JobRow({
   job,
   applicantCount,
+  isAdmin,
+  unlisted = false,
 }: {
   job: JobPost;
-  /** undefined = don't show count (non-admin), 0+ = show count */
-  applicantCount?: number;
+  applicantCount: number | undefined;
+  isAdmin: boolean;
+  unlisted?: boolean;
 }) {
   return (
     <Link
       to={`/jobs/${job.id}`}
-      className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+      className={cn(
+        "flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50",
+        unlisted && "border-dashed opacity-60 hover:opacity-100",
+      )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          {unlisted && <EyeSlashIcon className="h-4 w-4 shrink-0 text-muted-foreground" />}
           <p className="truncate font-medium">{job.title}</p>
-          {applicantCount !== undefined && applicantCount > 0 && (
+          {isAdmin && applicantCount !== undefined && applicantCount > 0 && (
             <Badge variant="secondary" className="gap-1 text-xs">
               <UsersIcon className="h-3 w-3" />
               {applicantCount}
@@ -378,12 +440,31 @@ function JobRow({
   );
 }
 
+function EmptyPositions({
+  isAdmin,
+  isActive,
+}: {
+  isAdmin: boolean;
+  isActive: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-lg border border-dashed py-10 text-center">
+      <BriefcaseIcon className="h-10 w-10 text-muted-foreground/50" />
+      <p className="mt-3 font-medium">No open positions</p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        {isAdmin && isActive
+          ? "Post your first job listing to start finding crew."
+          : isAdmin && !isActive
+            ? "This production is no longer active."
+            : "Check back later — new roles may be posted soon."}
+      </p>
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────
 
-function formatDateRange(
-  start: string,
-  end: string | null
-): string {
+function formatDateRange(start: string, end: string | null): string {
   const fmt = (d: string) =>
     new Date(d).toLocaleDateString("en-GB", {
       day: "numeric",

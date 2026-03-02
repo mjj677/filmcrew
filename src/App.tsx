@@ -19,6 +19,7 @@ import ProductionDetail from "@/pages/ProductionDetail";
 import EditProduction from "@/pages/EditProduction";
 import CreateJob from "@/pages/CreateJob";
 import JobDetail from "@/pages/JobDetail";
+import EditJob from "@/pages/EditJob";
 import CompanySettings from "@/pages/CompanySettings";
 import Companies from "@/pages/Companies";
 import CompanyProfile from "@/pages/CompanyProfile";
@@ -36,6 +37,7 @@ function App() {
         <Route path="/crew/:username" element={<CrewProfile />} />
         <Route path="/jobs" element={<Jobs />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
+        <Route path="/jobs/:id/edit" element={<ProtectedRoute><EditJob /></ProtectedRoute>} />
         <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/inbox/:conversationId" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

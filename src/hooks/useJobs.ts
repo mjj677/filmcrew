@@ -305,3 +305,93 @@ export function useCreateJob() {
     },
   });
 }
+
+type UpdateJobInput = {
+  jobId: string;
+  title: string;
+  description: string;
+  category?: string | null;
+  type?: string | null;
+  experience_level?: string | null;
+  location?: string | null;
+  is_remote?: boolean;
+  compensation?: string | null;
+  deadline?: string | null;
+};
+
+export function useUpdateJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId, ...fields }: UpdateJobInput) => {
+      const { data, error } = await supabase
+        .from("job_posts")
+        .update({
+          title: fields.title,
+          description: fields.description,
+          category: fields.category ?? null,
+          type: fields.type ?? null,
+          experience_level: fields.experience_level ?? null,
+          location: fields.location ?? null,
+          is_remote: fields.is_remote ?? false,
+          compensation: fields.compensation ?? null,
+          deadline: fields.deadline ?? null,
+        })
+        .eq("id", jobId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (data) => {
+      // Invalidate the specific job detail
+      queryClient.invalidateQueries({ queryKey: jobKeys.detail(data.id) });
+      // Invalidate all job list queries (title/deadline changes affect browse)
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      toast.success("Job updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update job", { description: error.message });
+    },
+  });
+}
+
+// ── Toggle job active mutation ────────────────────────────
+
+export function useToggleJobActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      isActive,
+    }: {
+      jobId: string;
+      isActive: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("job_posts")
+        .update({ is_active: isActive })
+        .eq("id", jobId);
+
+      if (error) throw new Error(error.message);
+      // Return the input so onSuccess knows what we toggled to
+      return { jobId, isActive };
+    },
+    onSuccess: ({ jobId, isActive }) => {
+      queryClient.invalidateQueries({ queryKey: jobKeys.detail(jobId) });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      toast.success(isActive ? "Job reopened" : "Job closed", {
+        description: isActive
+          ? "This listing is now visible to applicants."
+          : "This listing is no longer accepting applications.",
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update job status", {
+        description: error.message,
+      });
+    },
+  });
+}
